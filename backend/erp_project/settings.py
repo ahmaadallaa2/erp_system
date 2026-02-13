@@ -27,7 +27,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'apps.core',
-    'apps.users'  # تطبيق الكور اللي فيه الموديل الأساسي والميدل وير
+    'apps.users',
+    'apps.inventory',
 ]
 
 MIDDLEWARE = [
