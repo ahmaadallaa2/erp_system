@@ -1,16 +1,18 @@
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-bu(hq6(4quo16804$)x-ij2)ukdkizndh0(sxjrms*_fl54a3+'
+SECRET_KEY = os.getenv('SECRET_KEY')  # Use environment variable or default for development
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG') == 'True'
 
 ALLOWED_HOSTS = []
 
@@ -60,7 +62,7 @@ MIDDLEWARE = [
     'apps.core.middleware.ThreadLocalMiddleware',
 ]
 
-ROOT_URLCONF = 'erp_project.urls'
+ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
@@ -77,7 +79,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'erp_project.wsgi.application'
+WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # Database
@@ -86,11 +88,11 @@ WSGI_APPLICATION = 'erp_project.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'erp_db',           # اسم الداتابيز اللي عملناها
-        'USER': 'erp_user',         # اسم اليوزر
-        'PASSWORD': 'Ahmed2082004@', # الباسورد اللي اخترته
-        'HOST': 'localhost',        # السيرفر المحلي
-        'PORT': '5432',             # البورت الافتراضي
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'), # الآن الباسورد مخفي
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
 

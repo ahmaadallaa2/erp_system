@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Unit, Product
+from .models import Category, Unit, Product, Warehouse, Stock
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -40,3 +40,18 @@ class ProductAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+@admin.register(Warehouse)
+class WarehouseAdmin(admin.ModelAdmin):
+    list_display = ('name', 'branch', 'keeper', 'is_active')
+    list_filter = ('branch', 'is_active')
+    search_fields = ('name', 'branch__name', 'keeper__full_name')
+
+@admin.register(Stock)
+class StockAdmin(admin.ModelAdmin):
+    list_display = ('product', 'warehouse', 'quantity', 'location')
+    list_filter = ('warehouse', 'product__category')
+    search_fields = ('product__name', 'product__sku')
+    
+    # يفضل جعل الكمية للقراءة فقط هنا، لأننا هنعدلها بحركات رسمية لاحقاً
+    readonly_fields = ('quantity',)
+
