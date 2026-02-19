@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.contenttypes.admin import GenericTabularInline
 from .models import Company, Branch, SystemSetting, Sequence, Attachment, AuditLog
+from unfold.admin import ModelAdmin
 
 # --- 1. الـ Inlines (يجب تعريفها في البداية) ---
 
@@ -28,7 +29,7 @@ class BranchInline(admin.TabularInline):
 
 # --- 2. أدمن الشركة ---
 @admin.register(Company)
-class CompanyAdmin(admin.ModelAdmin):
+class CompanyAdmin(ModelAdmin):
     list_display = ('name', 'email', 'phone', 'created_at')
     search_fields = ('name', 'email', 'tax_number')
     
@@ -54,7 +55,7 @@ class CompanyAdmin(admin.ModelAdmin):
 
 # --- 3. أدمن الفروع ---
 @admin.register(Branch)
-class BranchAdmin(admin.ModelAdmin):
+class BranchAdmin(ModelAdmin):
     list_display = ('name', 'code', 'company', 'phone', 'is_active')
     list_filter = ('company', 'is_active', 'created_at')
     search_fields = ('name', 'code', 'phone')
@@ -81,7 +82,7 @@ class BranchAdmin(admin.ModelAdmin):
 
 # --- 4. أدمن إعدادات النظام ---
 @admin.register(SystemSetting)
-class SystemSettingAdmin(admin.ModelAdmin):
+class SystemSettingAdmin(ModelAdmin):
     list_display = ('system_name', 'default_currency', 'is_maintenance_mode')
     readonly_fields = ('created_at', 'updated_at', 'created_by', 'updated_by')
 
@@ -94,7 +95,7 @@ class SystemSettingAdmin(admin.ModelAdmin):
 
 # --- 5. أدمن التسلسل الرقمي ---
 @admin.register(Sequence)
-class SequenceAdmin(admin.ModelAdmin):
+class SequenceAdmin(ModelAdmin):
     list_display = ('key', 'current_value', 'prefix', 'formatted_next')
     search_fields = ('key', 'prefix')
     readonly_fields = ('formatted_next',)
@@ -106,7 +107,7 @@ class SequenceAdmin(admin.ModelAdmin):
 
 
 @admin.register(AuditLog)
-class AuditLogAdmin(admin.ModelAdmin):
+class AuditLogAdmin(ModelAdmin):
     list_display = ('timestamp', 'user', 'action', 'content_type', 'object_id', 'short_changes')
     list_filter = ('action', 'timestamp', 'content_type', 'user')
     search_fields = ('object_id', 'user__email', 'changes')

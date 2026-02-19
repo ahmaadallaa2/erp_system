@@ -2,6 +2,8 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 load_dotenv()  # Load environment variables from .env file
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,6 +22,10 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "unfold",  # لازم تكون أول واحدة هنا
+    "unfold.contrib.filters",  # لو هتحتاج فلاتر متطورة
+    "unfold.contrib.forms",
+    "unfold.contrib.inlines",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -138,3 +144,53 @@ CORS_ALLOWED_ORIGINS = [
 
 ]
 AUTH_USER_MODEL = 'users.User'
+
+
+
+UNFOLD = {
+    "SITE_TITLE": _("نظام ERP"),
+    "SITE_HEADER": _("لوحة التحكم"),
+    
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": True,
+        "navigation": [
+            # --- القائمة المنسدلة الأولى: إدارة المخازن والمنتجات ---
+            {
+                "title": _("إدارة المخازن والمنتجات"), 
+                "icon": "inventory_2",       
+                "separator": True,     
+                "collapsible": True,   
+                "items": [
+                    {
+                        "title": _("المنتجات"),
+                        "icon": "inventory", 
+                        "link": reverse_lazy("admin:inventory_product_changelist"), 
+                    },
+                    {
+                        "title": _("فئات المنتجات"),
+                        "icon": "category",
+                        "link": reverse_lazy("admin:inventory_category_changelist"), 
+                    },
+                    {
+                        "title": _("وحدات القياس"),
+                        "icon": "square_foot", # أيقونة مسطرة أو قياس
+                        "link": reverse_lazy("admin:inventory_unit_changelist"), 
+                    },
+                    {
+                        "title": _("المخازن"),
+                        "icon": "store",
+                        "link": reverse_lazy("admin:inventory_warehouse_changelist"),
+                    },
+                    {
+                        "title": _("أرصدة المخزون"),
+                        "icon": "shelves", # أيقونة أرفف مخازن
+                        "link": reverse_lazy("admin:inventory_stock_changelist"), # تم تصحيح الرابط هنا
+                    }
+                ],
+            },
+            
+            
+        ],
+    },
+}

@@ -1,19 +1,20 @@
 from django.contrib import admin
 from .models import Category, Unit, Product, Warehouse, Stock
+from unfold.admin import ModelAdmin
 
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(ModelAdmin):
     list_display = ('name', 'parent', 'created_at')
     search_fields = ('name',)
     list_filter = ('parent',)
 
 @admin.register(Unit)
-class UnitAdmin(admin.ModelAdmin):
+class UnitAdmin(ModelAdmin):
     list_display = ('name', 'short_name', 'created_at')
     search_fields = ('name', 'short_name')
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(ModelAdmin):
     list_display = ('name', 'sku', 'category', 'unit', 'sale_price', 'product_type', 'is_active')
     list_filter = ('category', 'product_type', 'is_active', 'created_at')
     search_fields = ('name', 'sku', 'barcode', 'description')
@@ -41,13 +42,13 @@ class ProductAdmin(admin.ModelAdmin):
         }),
     )
 @admin.register(Warehouse)
-class WarehouseAdmin(admin.ModelAdmin):
+class WarehouseAdmin(ModelAdmin):
     list_display = ('name', 'branch', 'keeper', 'is_active')
     list_filter = ('branch', 'is_active')
     search_fields = ('name', 'branch__name', 'keeper__full_name')
 
 @admin.register(Stock)
-class StockAdmin(admin.ModelAdmin):
+class StockAdmin(ModelAdmin):
     list_display = ('product', 'warehouse', 'quantity', 'location')
     list_filter = ('warehouse', 'product__category')
     search_fields = ('product__name', 'product__sku')
