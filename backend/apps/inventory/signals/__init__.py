@@ -1,0 +1,1 @@
+from .stock_updates import update_stock_on_movement
