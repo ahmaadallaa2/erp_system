@@ -144,6 +144,13 @@ CORS_ALLOWED_ORIGINS = [
 
 ]
 AUTH_USER_MODEL = 'users.User'
+# إعدادات الذاكرة المؤقتة (Caching)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'erp_cache_table', # اسم تعريفي للكاش الخاص بك
+    }
+}
 
 
 

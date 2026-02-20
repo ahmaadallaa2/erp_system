@@ -1,11 +1,13 @@
 from django.db import models
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
-from .base import BaseModel  # استدعاء الـ Base Model اللي اتفقنا عليه
+from apps.core.models.base import BaseModel
 
 class SystemSetting(BaseModel):
     """
-    موديل يخزن إعدادات النظام العامة.
-    يفترض وجود صف واحد (Record) فقط في هذا الجدول.
+    موديل يخزن إعدادات النظام العامة (Singleton Pattern).
+    يوجد صف واحد فقط، ويتم تخزينه في الذاكرة (Cache) لسرعة الأداء.
     """
     # --- إعدادات عامة ---
     system_name = models.CharField(_("اسم النظام"), max_length=100, default="My ERP")
@@ -27,23 +29,38 @@ class SystemSetting(BaseModel):
     def __str__(self):
         return f"Settings ({self.system_name})"
 
-    # دالة مساعدة عشان نضمن إننا دايماً بنعدل نفس الريكورد مش بنعمل جديد
-    def save(self, *args, **kwargs):
+    def clean(self):
+        """
+        التحقق قبل الحفظ (يمنع حفظ السجل من لوحة الإدارة إذا كان هناك سجل بالفعل).
+        """
         if not self.pk and SystemSetting.objects.exists():
-            # لو بنحاول نكريت واحد جديد وفيه واحد أصلاً موجود، نمنع ده (Singleton Pattern مبسط)
-            # أو ممكن نحدث الموجود، بس هنا هنسمح بالأدمن يديرها
-            pass 
-        return super(SystemSetting, self).save(*args, **kwargs)
+            raise ValidationError(_("لا يمكن إنشاء أكثر من سجل لإعدادات النظام. يرجى تعديل السجل الحالي."))
+        super().clean()
+
+    def save(self, *args, **kwargs):
+        self.clean() # تأكيد تشغيل التحقق
+        super().save(*args, **kwargs)
+        # تفريغ الكاش فوراً بمجرد حفظ أي تعديل لضمان قراءة البيانات الجديدة
+        cache.delete('core_system_settings')
 
     @classmethod
     def get_settings(cls):
         """
-        دالة بنناديها من أي مكان في الكود عشان تجيب الإعدادات الحالية
-        SystemSetting.get_settings().default_currency
+        دالة ذكية لجلب الإعدادات من الذاكرة العشوائية (Cache) بدلاً من الداتابيز.
+        الاستخدام في أي مكان: SystemSetting.get_settings().default_currency
         """
-        obj, created = cls.objects.get_or_create(id=1) # أو نعتمد على أول واحد
-        # الكود هنا للتبسيط، الأفضل نستخدم cache
-        first_setting = cls.objects.first()
-        if not first_setting:
-            first_setting = cls.objects.create()
-        return first_setting
+        # 1. محاولة جلب الإعدادات من الكاش
+        settings_obj = cache.get('core_system_settings')
+        
+        # 2. لو مش في الكاش، هنجيبها من الداتابيز
+        if not settings_obj:
+            settings_obj = cls.objects.first()
+            
+            # 3. لو الداتابيز فاضية تماماً (أول تشغيل للنظام)، ننشئ السجل الافتراضي
+            if not settings_obj:
+                settings_obj = cls.objects.create()
+                
+            # 4. نحفظ السجل في الكاش لمدة 24 ساعة (أو لحين التعديل)
+            cache.set('core_system_settings', settings_obj, timeout=60 * 60 * 24)
+            
+        return settings_obj
