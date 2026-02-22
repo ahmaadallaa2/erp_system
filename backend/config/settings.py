@@ -90,13 +90,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DB_NAME'),
         'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'), # الآن الباسورد مخفي
+        'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT'),
     }
@@ -154,50 +155,4 @@ CACHES = {
 
 
 
-UNFOLD = {
-    "SITE_TITLE": _("نظام ERP"),
-    "SITE_HEADER": _("لوحة التحكم"),
-    
-    "SIDEBAR": {
-        "show_search": True,
-        "show_all_applications": True,
-        "navigation": [
-            # --- القائمة المنسدلة الأولى: إدارة المخازن والمنتجات ---
-            {
-                "title": _("إدارة المخازن والمنتجات"), 
-                "icon": "inventory_2",       
-                "separator": True,     
-                "collapsible": True,   
-                "items": [
-                    {
-                        "title": _("المنتجات"),
-                        "icon": "inventory", 
-                        "link": reverse_lazy("admin:inventory_product_changelist"), 
-                    },
-                    {
-                        "title": _("فئات المنتجات"),
-                        "icon": "category",
-                        "link": reverse_lazy("admin:inventory_category_changelist"), 
-                    },
-                    {
-                        "title": _("وحدات القياس"),
-                        "icon": "square_foot", # أيقونة مسطرة أو قياس
-                        "link": reverse_lazy("admin:inventory_unit_changelist"), 
-                    },
-                    {
-                        "title": _("المخازن"),
-                        "icon": "store",
-                        "link": reverse_lazy("admin:inventory_warehouse_changelist"),
-                    },
-                    {
-                        "title": _("أرصدة المخزون"),
-                        "icon": "shelves", # أيقونة أرفف مخازن
-                        "link": reverse_lazy("admin:inventory_stock_changelist"), # تم تصحيح الرابط هنا
-                    }
-                ],
-            },
-            
-            
-        ],
-    },
-}
+# unfold admin settings
