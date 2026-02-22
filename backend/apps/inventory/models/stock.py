@@ -54,6 +54,7 @@ class Stock(BaseModel):
         null=True, 
         blank=True
     )
+    reorder_point = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     class Meta:
         verbose_name = _("رصيد مخزون")

@@ -9,11 +9,6 @@ from apps.core.models.company import Company # الربط بالشركة ضرو�
 from .category import Category
 from .unit import Unit # تأكد من أن الاسم يطابق ما كتبناه في ملف unit.py
 
-def get_product_image_path(instance, filename):
-    """دالة لتوليد اسم آمن لصور المنتجات على السيرفرات السحابية"""
-    ext = os.path.splitext(filename)[1].lower()
-    return f"products/company_{instance.company_id}/{uuid.uuid4().hex}{ext}"
-
 class Product(SoftDeleteModel):
     """
     بطاقة المنتج الرئيسية.
@@ -35,7 +30,7 @@ class Product(SoftDeleteModel):
 
     name = models.CharField(_("اسم المنتج"), max_length=255)
     # أزلنا unique=True من هنا لحل مشكلة الحذف الناعم
-    sku = models.CharField(_("SKU"), max_length=100, blank=True) 
+    sku = models.CharField(_("كود المنتج"), max_length=100, blank=True) 
     barcode = models.CharField(_("باركود"), max_length=100, null=True, blank=True)
     
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='products', verbose_name=_("التصنيف"))
@@ -43,10 +38,12 @@ class Product(SoftDeleteModel):
     product_type = models.CharField(_("نوع المنتج"), max_length=20, choices=PRODUCT_TYPES, default='storable')
     
     cost_price = models.DecimalField(_("سعر التكلفة الافتراضي"), max_digits=12, decimal_places=2, default=0)
+    average_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name=_("متوسط التكلفة"))
     sale_price = models.DecimalField(_("سعر البيع الافتراضي"), max_digits=12, decimal_places=2, default=0)
+
+    reorder_point = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name=_("حد الطلب"))
     
     # استخدام المسار الآمن للصور
-    image = models.ImageField(_("صورة المنتج"), upload_to=get_product_image_path, null=True, blank=True)
     description = models.TextField(_("وصف تفصيلي"), null=True, blank=True)
     is_active = models.BooleanField(_("نشط"), default=True)
 

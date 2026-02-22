@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from apps.core.models import SoftDeleteModel, Branch
+from apps.core.models import SoftDeleteModel, Branch, Sequence 
 from apps.users.models import User
 
 class Warehouse(SoftDeleteModel):
@@ -9,7 +9,9 @@ class Warehouse(SoftDeleteModel):
     تلقائياً من SoftDeleteModel -> BaseModel.
     """
     name = models.CharField(_("اسم المخزن"), max_length=100)
-    code = models.CharField(_("كود المخزن"), max_length=20, unique=True)
+    
+    # ضفنا blank=True عشان الفورم متطلبوش اجباري، والسيستم هو اللي هيكتبه في الـ save
+    code = models.CharField(_("كود المخزن"), max_length=20, unique=True, blank=True)
     
     branch = models.ForeignKey(
         Branch, 
@@ -18,9 +20,7 @@ class Warehouse(SoftDeleteModel):
         verbose_name=_("الفرع التابع له")
     )
     
-    # ده حقل ممتاز ومختلف عن created_by
-    # created_by: مين الموظف اللي قاعد عالكمبيوتر وسجل المخزن.
-    # keeper: مين أمين المخزن المسئول عن العهدة (ممكن يكون شخص تاني).
+    # keeper: مين أمين المخزن المسئول عن العهدة.
     keeper = models.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
@@ -40,3 +40,18 @@ class Warehouse(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.name} ({self.branch.name})"
+
+    def save(self, *args, **kwargs):
+        # توليد التسلسل التلقائي لكود المخزن
+        if not self.code:
+            # لو المخزن بيورث company_id من BaseModel تقدر تستخدم self.company_id
+            # لو لأ، ممكن نعتمد على id الفرع أو شركة الفرع (self.branch.company_id)
+            # هنا استخدمت getattr عشان لو company_id موروثة يقرأها، لو لا ياخد الـ branch_id كبديل احتياطي
+            company_id = getattr(self, 'company_id', getattr(self.branch, 'company_id', self.branch_id))
+            
+            seq_key = f"warehouse_code_comp_{company_id}"
+            
+            # بادئة WH- تعبر عن Warehouse، و padding=4 عشان يكون مثلاً WH-0001
+            self.code = Sequence.next_number(seq_key, prefix='WH-', padding=4)
+            
+        super().save(*args, **kwargs)
