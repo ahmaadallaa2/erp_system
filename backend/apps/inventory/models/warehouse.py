@@ -9,6 +9,7 @@ class Warehouse(SoftDeleteModel):
     تلقائياً من SoftDeleteModel -> BaseModel.
     """
     name = models.CharField(_("اسم المخزن"), max_length=100)
+    code = models.CharField(_("كود المخزن"), max_length=20, unique=True)
     
     branch = models.ForeignKey(
         Branch, 
