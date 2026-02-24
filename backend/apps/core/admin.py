@@ -64,17 +64,27 @@ class BranchAdmin(ModelAdmin):
     search_fields = ('name', 'code', 'phone')
     ordering = ('company', 'name')
     inlines = [AttachmentInline]
-    readonly_fields = ('created_at', 'updated_at', 'created_by', 'updated_by')
+    
+    # التعديل هنا: إضافة 'code' للحقول غير القابلة للتعديل
+    readonly_fields = ('code', 'created_at', 'updated_at', 'created_by', 'updated_by')
 
     fieldsets = (
         ('بيانات الفرع', {
-            'fields': ('company', 'name', 'code', 'is_active')
+            # تريكة الـ UI: وضع الاسم والكود في سطر واحد
+            'fields': (
+                'company', 
+                ('name', 'code'), 
+                'is_active'
+            )
         }),
         ('الاتصال', {
             'fields': ('phone', 'address')
         }),
         ('سجلات النظام', {
-            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by'),
+            'fields': (
+                ('created_at', 'updated_at'), 
+                ('created_by', 'updated_by')
+            ),
             'classes': ('collapse',),
         }),
     )

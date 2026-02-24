@@ -34,10 +34,12 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    # my apps
     'apps.core',
     'apps.users',
     'apps.inventory',
     'apps.partners',
+    'apps.purchases',
 ]
 
 MIDDLEWARE = [
@@ -157,3 +159,32 @@ CACHES = {
 
 
 # unfold admin settings
+UNFOLD = {
+    "SITE_TITLE": "ERP System",
+    "SITE_HEADER": "إدارة النظام المتكامل",
+    "SITE_SYMBOL": "speed", # أيقونة بجانب العنوان (Heroicon name)
+    
+    # ضبط السايد بار كما طلبت (إظهار الكل تلقائياً)
+    "SIDEBAR": {
+        "show_search": True, # شريط بحث سريع عن الموديلات
+        "show_all_applications": True, 
+        "navigation": [], # فارغة ليعتمد على التلقائي
+    },
+
+    # ألوان الواجهة (يمكنك تخصيصها لتناسب ذوقك الكلاسيكي)
+    "COLORS": {
+        "primary": {
+            "50": "250 250 250",
+            "100": "244 244 245",
+            "200": "228 228 231",
+            "300": "212 212 216",
+            "400": "161 161 170",
+            "500": "113 113 122",
+            "600": "82 82 91",
+            "700": "63 63 70",
+            "800": "39 39 42",
+            "900": "24 24 27",
+            "950": "9 9 11",
+        },
+    },
+}
