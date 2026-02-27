@@ -3,9 +3,9 @@ from django.utils.translation import gettext_lazy as _
 
 class PurchasesConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    
-    # التعديل الأهم: كتابة المسار الكامل للتطبيق
-    name = 'apps.purchases' 
-    
-    # الاسم اللي هيظهر في لوحة التحكم (Admin)
+    name = 'apps.purchases'
     verbose_name = _("إدارة المشتريات")
+
+    def ready(self):
+        # By importing the signals module, the __init__.py will load all specific signal files
+        import apps.purchases.signals
