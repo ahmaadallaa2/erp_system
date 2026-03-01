@@ -5,6 +5,4 @@ class InventoryConfig(AppConfig):
     name = 'apps.inventory'  # <--- مهم جداً تكتب المسار كامل
     verbose_name = "المخازن والمنتجات"
 
-    def ready(self):
-        #استيراد الإشارات هنا عشان تتفعل
-        import apps.inventory.signals
+  
