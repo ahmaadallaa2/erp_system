@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from apps.core.models import SoftDeleteModel
 from django.db.models import Sum
+from decimal import Decimal
 
 class Account(SoftDeleteModel):
     ACCOUNT_TYPES = [
@@ -65,8 +66,8 @@ class Account(SoftDeleteModel):
             total_credit=Sum('credit')
         )
         
-        total_debit = totals.get('total_debit') 
-        total_credit = totals.get('total_credit') 
+        total_debit = totals.get('total_debit') or Decimal('0.00')
+        total_credit = totals.get('total_credit') or Decimal('0.00')
         # الأصول والمصروفات (طبيعتها مدينة)
         if self.account_type in ['asset', 'expense']:
             return total_debit - total_credit

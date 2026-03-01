@@ -57,3 +57,54 @@ class AccountingService:
             )
 
             return True, "تم إنشاء القيد المحاسبي بنجاح."
+        
+    @staticmethod
+    def create_payment_entry(payment, cash_account_code='1002', payable_account_code='2001', receivable_account_code='1003'):
+        """
+        خدمة لإنشاء قيد يومية أوتوماتيكي عند عمل سند صرف أو قبض.
+        """
+        with transaction.atomic():
+            # 1. تحديد دفتر النقدية
+            journal, _ = Journal.objects.get_or_create(
+                code='CSH',
+                defaults={'name': 'دفتر الخزينة / النقدية', 'type': 'cash'}
+            )
+
+            # 2. جلب الحسابات
+            try:
+                cash_acc = Account.objects.get(code=cash_account_code)
+                partner_acc = Account.objects.get(code=payable_account_code if payment.payment_type == 'outbound' else receivable_account_code)
+            except Account.DoesNotExist:
+                return False, f"فشل: تأكد من وجود حساب الخزينة ({cash_account_code}) وحساب الشريك في شجرة الحسابات."
+
+            # -----------------------------------------------------
+            # 🔒 قفل الأمان الصارم: منع السحب على المكشوف من الخزينة
+            # -----------------------------------------------------
+            if payment.payment_type == 'outbound':
+                current_cash = cash_acc.current_balance
+                if payment.amount > current_cash:
+                    return False, f"مرفوض أمنياً! رصيد الخزينة الفعلي ({current_cash}) لا يكفي لصرف المبلغ المطلوب ({payment.amount}). يجب إثبات توريد نقدية للخزنة أولاً."
+            # -----------------------------------------------------
+
+            # 3. إنشاء رأس القيد
+            entry = JournalEntry.objects.create(
+                journal=journal,
+                date=payment.date,
+                reference=payment.name,
+                status='posted',
+                notes=payment.notes or f"سداد من/إلى {payment.partner.name}"
+            )
+
+            # 4. توجيه السطور
+            if payment.payment_type == 'outbound':
+                JournalItem.objects.create(entry=entry, account=partner_acc, partner=payment.partner, description=f"سداد دفعة للمورد", debit=payment.amount, credit=0.00)
+                JournalItem.objects.create(entry=entry, account=cash_acc, description=f"صرف نقدية", debit=0.00, credit=payment.amount)
+            else:
+                JournalItem.objects.create(entry=entry, account=cash_acc, description=f"استلام نقدية", debit=payment.amount, credit=0.00)
+                JournalItem.objects.create(entry=entry, account=partner_acc, partner=payment.partner, description=f"تحصيل دفعة من العميل", debit=0.00, credit=payment.amount)
+
+            # 5. ربط القيد بالسند
+            payment.journal_entry = entry
+            payment.save(update_fields=['journal_entry'])
+
+            return True, "تم السداد وإنشاء القيد بنجاح."
