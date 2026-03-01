@@ -1,6 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 from ..models import Partner
+from decimal import Decimal
 
 @admin.register(Partner)
 class PartnerAdmin(ModelAdmin):
@@ -10,7 +11,7 @@ class PartnerAdmin(ModelAdmin):
         'name', 
         'partner_type', 
         'phone', 
-        'balance', # مهم جداً يظهر بره للمتابعة السريعة
+        'get_current_balance', # مهم جداً يظهر بره للمتابعة السريعة
         'is_active'
     )
     
@@ -37,8 +38,8 @@ class PartnerAdmin(ModelAdmin):
     
     # 4. الحقول المحمية (الكود والرصيد الحالي وحقول النظام)
     readonly_fields = (
+        'get_current_balance',
         'code', 
-        'balance', 
         'created_at', 
         'updated_at', 
         'created_by', 
@@ -69,11 +70,12 @@ class PartnerAdmin(ModelAdmin):
         ('البيانات المالية والإدارية', {
             'fields': (
                 ('credit_limit', 'initial_balance'),
-                'balance', # هيظهر كحقل للقراءة فقط
+                # التعديل هنا: دمجنا الرصيد الثابت مع الرصيد الفعلي (المحسوب) في سطر واحد
+                ('get_current_balance'), 
                 'responsible',
                 'notes'
             ),
-            'description': 'الرصيد الافتتاحي يتم ضبطه مرة واحدة فقط. الرصيد الحالي يتحدث تلقائياً مع حركات الفواتير.'
+            'description': 'الرصيد الافتتاحي يتم ضبطه مرة واحدة فقط. الرصيد الفعلي يتحدث تلقائياً مع حركات الفواتير والقيود.'
         }),
         ('سجلات النظام', {
             'fields': (
@@ -83,3 +85,15 @@ class PartnerAdmin(ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+
+    def get_current_balance(self, obj):
+        # تأمين القيمة في حال كانت None
+        balance = obj.current_balance or Decimal('0.00')
+        
+        if balance > 0:
+            return f"{balance} (له)" if obj.partner_type != 'customer' else f"{balance} (عليه)"
+        elif balance < 0:
+            return f"{abs(balance)} (عليه)" if obj.partner_type != 'customer' else f"{abs(balance)} (له)"
+        return "0.00"
+    
+    get_current_balance.short_description = "الرصيد الفعلي (من الحسابات)"

@@ -1,1 +1,1 @@
-from .partner import PartnerAdmin
+from .partners_admin import PartnerAdmin

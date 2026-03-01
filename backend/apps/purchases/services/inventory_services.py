@@ -1,6 +1,7 @@
 from django.db import transaction
 from apps.inventory.models import StockMovement
 from apps.inventory.services.stock_service import StockService
+from apps.accounting.services import AccountingService
 
 class InventorySyncService:
     
@@ -24,5 +25,9 @@ class InventorySyncService:
                     notes=f"وارد مشتريات تلقائي من فاتورة رقم: {invoice.invoice_number}",
                     unit_price=item.unit_price # بنبعت السعر عشان يحسب متوسط التكلفة
                 )
+                
+            success, message = AccountingService.create_purchase_invoice_entry(invoice)
+            if not success:
+                raise Exception(message)
                     
             return True, "تم تحديث المخزون بنجاح."
