@@ -7,21 +7,21 @@ from apps.inventory.models import Stock, StockMovement
 class InventorySyncService:
     
     @staticmethod
-    def process_purchase_receipt(purchase_order):
+    def process_purchase_receipt(purchase_invoice):
         """
         Service to handle inventory updates and WAC calculations 
         when a Purchase Order is approved/received.
         """
         with transaction.atomic():
             # 1. Idempotency Check: Prevent duplicate processing
-            movement_exists = StockMovement.objects.filter(reference=purchase_order.po_number).exists()
+            movement_exists = StockMovement.objects.filter(reference=purchase_invoice.invoice_number).exists()
             if movement_exists:
                 return False, "تم إدخال هذه الفاتورة للمخزن مسبقاً."
             
             # 2. Process each item in the purchase order
-            for item in purchase_order.items.all():
+            for item in purchase_invoice.items.all():
                 product = item.product
-                warehouse = purchase_order.warehouse
+                warehouse = purchase_invoice.warehouse
                 quantity = item.quantity
                 unit_price = item.unit_price
 
@@ -34,19 +34,10 @@ class InventorySyncService:
                     # لو الموديل بيقبل كلمة 'وارد' مباشرة حطها، ولو عاملها كـ Choices زي 'IN' حطها 'IN'
                     movement_type='IN',  # أو 'in' سمول لو أنت كاتبها سمول في الموديل  # أو 'IN' حسب تعريفك في الموديل
                     quantity=quantity,
-                    reference=purchase_order.po_number,
+                    reference=purchase_invoice.invoice_number,
                     # بالمرة نخلي الملاحظة التلقائية تظهر بالعربي بشياكة
-                    notes=f"وارد مشتريات تلقائي من أمر الشراء رقم: {purchase_order.po_number}" 
+                    notes=f"وارد مشتريات تلقائي من أمر الشراء رقم: {purchase_invoice.invoice_number}" 
                 )
-
-                # B. Update or Create Stock Record
-                stock_record, _ = Stock.objects.get_or_create(
-                    product=product, 
-                    warehouse=warehouse,
-                    defaults={'quantity': 0}
-                )
-                stock_record.quantity += quantity
-                stock_record.save(update_fields=['quantity'])
 
                 # C. Calculate and Update Weighted Average Cost (WAC)
                 total_current_qty = Stock.objects.filter(product=product).aggregate(total=Sum('quantity'))['total'] or 0

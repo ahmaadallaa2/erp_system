@@ -1,6 +1,6 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
-from .models import PurchaseOrder, PurchaseOrderItem
+from ..models import PurchaseOrder, PurchaseOrderItem
 
 # ==========================================
 # 1. Inline Configuration for Purchase Items

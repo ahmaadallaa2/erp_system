@@ -1,0 +1,2 @@
+from .purchase_order_admin import PurchaseOrderAdmin
+from .purchase_invoice_admin import PurchaseInvoiceAdmin
