@@ -22,7 +22,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    "unfold",  # لازم تكون أول واحدة هنا
+    "unfold",  
     "unfold.contrib.filters",  # لو هتحتاج فلاتر متطورة
     "unfold.contrib.forms",
     "unfold.contrib.inlines",
@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.partners',
     'apps.purchases',
     'apps.accounting',
+    'apps.sales'
 ]
 
 MIDDLEWARE = [
@@ -188,4 +189,8 @@ UNFOLD = {
             "950": "9 9 11",
         },
     },
+}
+GRAPH_MODELS = {
+    'all_applications': True,
+    'group_models': True,
 }
