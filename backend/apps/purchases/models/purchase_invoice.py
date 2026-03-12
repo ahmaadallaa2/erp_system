@@ -82,6 +82,11 @@ class PurchaseInvoice(SoftDeleteModel):
         verbose_name=_("إجمالي الفاتورة"),
         editable=False
     )
+    
+    # حقول التكلفة الشاملة (Landed Costs)
+    shipping_cost = models.DecimalField(_("تكلفة الشحن الداخلي"), max_digits=10, decimal_places=2, default=0.00)
+    clearance_cost = models.DecimalField(_("تكلفة الأرضيات والتخليص"), max_digits=10, decimal_places=2, default=0.00)
+    commission_percentage = models.DecimalField(_("نسبة عمولة المورد (%)"), max_digits=5, decimal_places=2, default=5.00)
 
     notes = models.TextField(blank=True, verbose_name=_("ملاحظات"))
 

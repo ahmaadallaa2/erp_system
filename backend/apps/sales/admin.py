@@ -30,10 +30,12 @@ class SalesInvoiceAdmin(ModelAdmin):
         ('البيانات الأساسية', {
             'fields': (
                 ('customer', 'date'),
-                ('warehouse', 'status'), # 3. التعديل هنا: حطينا المخزن والحالة في سطر واحد
+                ('warehouse', 'status'),
+                ('payment_type', 'treasury_account'), # <--- ضفناهم هنا في سطر واحد
                 'notes'
             )
         }),
+        # ... باقي الكود ...
         ('سجلات النظام', {
             'fields': (
                 'invoice_number',

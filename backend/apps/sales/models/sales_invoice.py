@@ -13,6 +13,11 @@ class SalesInvoice(SoftDeleteModel):
         ('cancelled', _('ملغاة')),
     ]
 
+    PAYMENT_CHOICES = [
+        ('credit', 'آجل (على الحساب)'),
+        ('cash', 'كاش (نقدي)'),
+    ]
+
     invoice_number = models.CharField(_("رقم الفاتورة"), max_length=50, unique=True, blank=True)
     
     # هنا بنربط بالعميل (Partner)
@@ -34,7 +39,18 @@ class SalesInvoice(SoftDeleteModel):
         verbose_name=_("المخزن (يُصرف منه)"),
         null=True, # حطيناها True مؤقتاً عشان المايجريشن ميضربش لو عندك فواتير قديمة متسجلة
     )
-    
+
+    payment_type = models.CharField(_("طريقة الدفع"), max_length=10, choices=PAYMENT_CHOICES, blank=True)
+
+    treasury_account = models.ForeignKey(
+        'accounting.Account', 
+        on_delete=models.RESTRICT, 
+        related_name='cash_sales',
+        verbose_name=_("حساب الخزينة (للكاش)"),
+        null=True, blank=True,
+        limit_choices_to={'code__startswith': '1001'} # بافتراض إن كود الخزينة عندك بيبدأ بـ 1001
+
+    )
     date = models.DateField(_("تاريخ الفاتورة"), default=timezone.now)
     status = models.CharField(_("الحالة"), max_length=20, choices=STATUS_CHOICES, default='draft')
     
@@ -93,6 +109,6 @@ class SalesInvoiceItem(models.Model):
     @property
     def total_price(self):
         # بنحول الكمية والسعر لـ String وبعدين Decimal عشان نمنع أي كراش
-        qty = Decimal(str(self.quantity or '0.00'))
-        price = Decimal(str(self.unit_price or '0.00'))
+        qty = Decimal(str(self.quantity or '0'))
+        price = Decimal(str(self.unit_price or '0'))
         return qty * price

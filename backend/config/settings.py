@@ -167,33 +167,155 @@ REST_FRAMEWORK = {
 
 # unfold admin settings
 UNFOLD = {
-    "SITE_TITLE": "ERP System",
-    "SITE_HEADER": "إدارة النظام المتكامل",
-    "SITE_SYMBOL": "speed", # أيقونة بجانب العنوان (Heroicon name)
-    
-    # ضبط السايد بار كما طلبت (إظهار الكل تلقائياً)
-    "SIDEBAR": {
-        "show_search": True, # شريط بحث سريع عن الموديلات
-        "show_all_applications": True, 
-        "navigation": [], # فارغة ليعتمد على التلقائي
-    },
+    "SITE_TITLE": "ERP System | Enterprise",
+    "SITE_HEADER": "نظام الإدارة المتكامل",
+    "SITE_SYMBOL": "account_balance", # رمز كلاسيكي يعبر عن القوة المالية والإدارية
+    "SITE_URL": "/",
+    "ENVIRONMENT": "development", # يظهر شارة توضح بيئة العمل الحالية
 
-    # ألوان الواجهة (يمكنك تخصيصها لتناسب ذوقك الكلاسيكي)
+    # ألوان الواجهة (Slate Theme - طابع كلاسيكي، رسمي، ومريح لعين المحاسب)
     "COLORS": {
         "primary": {
-            "50": "250 250 250",
-            "100": "244 244 245",
-            "200": "228 228 231",
-            "300": "212 212 216",
-            "400": "161 161 170",
-            "500": "113 113 122",
-            "600": "82 82 91",
-            "700": "63 63 70",
-            "800": "39 39 42",
-            "900": "24 24 27",
-            "950": "9 9 11",
+            "50": "248 250 252",
+            "100": "241 245 249",
+            "200": "226 232 240",
+            "300": "203 213 225",
+            "400": "148 163 184",
+            "500": "100 116 139",
+            "600": "71 85 105",
+            "700": "51 65 85",
+            "800": "30 41 59",
+            "900": "15 23 42",
+            "950": "2 6 23",
         },
     },
+
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "الرئيسية",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "لوحة التحكم",
+                        "icon": "dashboard",
+                        "link": reverse_lazy("admin:index"),
+                    },
+                ],
+            },
+            {
+                "title": "المبيعات والعملاء",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "العملاء",
+                        "icon": "person_add",
+                        "link": "/admin/partners/partner/", 
+                    },
+                    {
+                        "title": "فواتير المبيعات",
+                        "icon": "receipt_long",
+                        "link": "/admin/sales/salesinvoice/",
+                    },
+                ],
+            },
+            {
+                "title": "المشتريات والموردين",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "الموردين",
+                        "icon": "group",
+                        "link": "/admin/partners/partner/", 
+                    },
+                    {
+                        "title": "فواتير المشتريات",
+                        "icon": "shopping_cart",
+                        "link": "/admin/purchases/purchaseinvoice/",
+                    },
+                ],
+            },
+            {
+                "title": "إدارة المخازن",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "المنتجات",
+                        "icon": "inventory_2",
+                        "link": "/admin/inventory/product/",
+                    },
+                    {
+                        "title": "المخازن",
+                        "icon": "warehouse",
+                        "link": "/admin/inventory/warehouse/",
+                    },
+                    {
+                        "title": "أرصدة المخزون",
+                        "icon": "stacked_bar_chart",
+                        "link": "/admin/inventory/stock/",
+                    },
+                ],
+            },
+            {
+                "title": "النظام المالي",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "شجرة الحسابات",
+                        "icon": "account_tree",
+                        "link": "/admin/accounting/account/",
+                    },
+                    {
+                        "title": "قيود اليومية",
+                        "icon": "menu_book",
+                        "link": "/admin/accounting/journalentry/",
+                    },
+                ],
+            },
+            {
+                "title": "تحليل البيانات", # قسم مخصص للتقارير والداشبورد مستقبلاً
+                "separator": True,
+                "items": [
+                    {
+                        "title": "التقارير الشاملة",
+                        "icon": "analytics",
+                        "link": "#", # سيتم ربطها لاحقاً
+                    },
+                ],
+            },
+            {
+                "title": "إعدادات النظام",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "المستخدمين والصلاحيات",
+                        "icon": "manage_accounts",
+                        "link": "/admin/users/user/",
+                    },
+                    {
+                        "title": "تسلسل الأرقام",
+                        "icon": "pin",
+                        "link": "/admin/core/sequence/",
+                    },
+                ],
+            },
+        ],
+    },
+    
+    # قائمة المستخدم الجانبية العلوية
+    "TABS": [
+        {
+            "models": ["auth.user"],
+            "items": [
+                {
+                    "title": "تغيير كلمة المرور",
+                    "link": reverse_lazy("admin:password_change"),
+                },
+            ],
+        },
+    ],
 }
 GRAPH_MODELS = {
     'all_applications': True,
