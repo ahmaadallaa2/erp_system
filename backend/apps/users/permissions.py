@@ -1,13 +1,12 @@
-from django.contrib.auth.models import Group, Permission
-from django.contrib.contenttypes.models import ContentType
+from django.contrib.auth.models import Group
 
-# --- 1. تعريف أسماء المجموعات (Roles) ---
+# --- 1. تعريف أسماء المجموعات (Roles) باللغة العربية ---
 # بنحطها في متغيرات عشان نستخدمها في السيستم كله من غير ما نغلط في الإملاء
-GROUP_SUPER_ADMIN = 'Super Admin'  # له كل الصلاحيات
-GROUP_MANAGER = 'Manager'          # مدير (فرع أو قسم)
-GROUP_ACCOUNTANT = 'Accountant'    # محاسب
-GROUP_INVENTORY = 'Inventory Staff'# أمين مخزن
-GROUP_SALES = 'Sales Agent'        # موظف مبيعات
+GROUP_SUPER_ADMIN = 'مدير النظام'           # له كل الصلاحيات
+GROUP_MANAGER = 'مدير فرع'                 # مدير (فرع أو قسم)
+GROUP_ACCOUNTANT = 'الإدارة المالية'        # محاسبات وقيود
+GROUP_INVENTORY = 'أمناء المخازن'           # جرد وحركات مخزنية
+GROUP_SALES = 'فريق المبيعات'              # فواتير وعملاء
 
 SYSTEM_GROUPS = [
     GROUP_SUPER_ADMIN,
@@ -55,5 +54,7 @@ def create_default_groups():
         group, created = Group.objects.get_or_create(name=group_name)
         if created:
             created_count += 1
-            print(f"Created Group: {group_name}")
+            print(f"تم إنشاء مجموعة بنجاح: {group_name}")
+        else:
+            print(f"المجموعة موجودة مسبقاً: {group_name}")
     return created_count

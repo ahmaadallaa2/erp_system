@@ -5,17 +5,35 @@ from decimal import Decimal
 
 @admin.register(Partner)
 class PartnerAdmin(ModelAdmin):
-    # 1. القائمة الرئيسية (أهم البيانات اللي بتظهر في الجدول الخارجي)
+    # --- تعديل: فلترة البيانات بناءً على الصلاحيات (الذكاء الاصطناعي للسيستم) ---
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # لو سوبر يوزر، اعرض كل حاجة
+        if request.user.is_superuser:
+            return qs
+        
+        # لو الموظف في مجموعة المبيعات، اعرض العملاء فقط
+        if request.user.groups.filter(name='فريق المبيعات').exists():
+            return qs.filter(partner_type='customer')
+            
+        # لو الموظف في مجموعة المشتريات أو المخازن، اعرض الموردين فقط
+        if request.user.groups.filter(name='أمناء المخازن').exists() or \
+           request.user.groups.filter(name='الإدارة المالية').exists():
+            return qs.filter(partner_type='supplier')
+            
+        return qs
+
+    # 1. القائمة الرئيسية
     list_display = (
         'code', 
         'name', 
         'partner_type', 
         'phone', 
-        'get_current_balance', # مهم جداً يظهر بره للمتابعة السريعة
+        'get_current_balance', 
         'is_active'
     )
     
-    # 2. الفلاتر الجانبية (عشان تفصل العملاء عن الموردين أو تفلتر بالمدينة)
+    # 2. الفلاتر الجانبية
     list_filter = (
         'partner_type', 
         'is_active', 
@@ -23,7 +41,7 @@ class PartnerAdmin(ModelAdmin):
         'created_at'
     )
     
-    # 3. حقول البحث (بحث شامل وسريع)
+    # 3. حقول البحث
     search_fields = (
         'code', 
         'name', 
@@ -33,10 +51,8 @@ class PartnerAdmin(ModelAdmin):
         'commercial_record'
     )
     
-    # الترتيب الافتراضي
     ordering = ('-created_at',)
     
-    # 4. الحقول المحمية (الكود والرصيد الحالي وحقول النظام)
     readonly_fields = (
         'get_current_balance',
         'code', 
@@ -46,7 +62,7 @@ class PartnerAdmin(ModelAdmin):
         'updated_by'
     )
 
-    # 5. تقسيم صفحة الإضافة والتعديل بشكل مريح جداً للعين (Fieldsets)
+    # 5. تقسيم صفحة الإضافة والتعديل (Fieldsets)
     fieldsets = (
         ('البيانات الأساسية والتصنيف', {
             'fields': (
@@ -70,12 +86,11 @@ class PartnerAdmin(ModelAdmin):
         ('البيانات المالية والإدارية', {
             'fields': (
                 ('credit_limit', 'initial_balance'),
-                # التعديل هنا: دمجنا الرصيد الثابت مع الرصيد الفعلي (المحسوب) في سطر واحد
-                ('get_current_balance'), 
+                ('get_current_balance',), # الرصيد الفعلي
                 'responsible',
                 'notes'
             ),
-            'description': 'الرصيد الافتتاحي يتم ضبطه مرة واحدة فقط. الرصيد الفعلي يتحدث تلقائياً مع حركات الفواتير والقيود.'
+            'description': 'الرصيد الافتتاحي يتم ضبطه مرة واحدة فقط. الرصيد الفعلي يتحدث تلقائياً.'
         }),
         ('سجلات النظام', {
             'fields': (
@@ -87,9 +102,7 @@ class PartnerAdmin(ModelAdmin):
     )
 
     def get_current_balance(self, obj):
-        # تأمين القيمة في حال كانت None
         balance = obj.current_balance or Decimal('0.00')
-        
         if balance > 0:
             return f"{balance} (له)" if obj.partner_type != 'customer' else f"{balance} (عليه)"
         elif balance < 0:
@@ -97,3 +110,10 @@ class PartnerAdmin(ModelAdmin):
         return "0.00"
     
     get_current_balance.short_description = "الرصيد الفعلي (من الحسابات)"
+
+    # --- لمسة احترافية إضافية للعرض: تعبئة حقل created_by أوتوماتيكياً ---
+    def save_model(self, request, obj, form, change):
+        if not change: # لو سجل جديد
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)

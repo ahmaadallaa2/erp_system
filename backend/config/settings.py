@@ -14,9 +14,15 @@ sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 SECRET_KEY = os.getenv('SECRET_KEY')  # Use environment variable or default for development
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG') == 'True'
+DEBUG = os.getenv('DEBUG') == 'False'
 
-ALLOWED_HOSTS = []
+
+ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.ngrok-free.app',
+    'https://*.ngrok.io',
+    'https://*.ngrok-free.dev',  # <-- السطر ده هو اللي هيحل المشكلة
+]
 
 
 # Application definition
@@ -74,14 +80,15 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        # السطر السحري اللي بيشاور على فولدر templates اللي بره
+        'DIRS': [BASE_DIR / 'templates'], 
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
+                'django.template.context_processors.debug',
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
@@ -89,6 +96,7 @@ TEMPLATES = [
         },
     },
 ]
+
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
@@ -166,12 +174,17 @@ REST_FRAMEWORK = {
 }
 
 # unfold admin settings
+
+
+from django.urls import reverse_lazy
+
 UNFOLD = {
     "SITE_TITLE": "ERP System | Enterprise",
     "SITE_HEADER": "نظام الإدارة المتكامل",
     "SITE_SYMBOL": "account_balance", # رمز كلاسيكي يعبر عن القوة المالية والإدارية
     "SITE_URL": "/",
-    "ENVIRONMENT": "development", # يظهر شارة توضح بيئة العمل الحالية
+    # تم التغيير لـ Production عشان السيستم يبان احترافي وجاهز للعمل
+    "ENVIRONMENT": "Production", 
 
     # ألوان الواجهة (Slate Theme - طابع كلاسيكي، رسمي، ومريح لعين المحاسب)
     "COLORS": {
@@ -202,6 +215,8 @@ UNFOLD = {
                         "title": "لوحة التحكم",
                         "icon": "dashboard",
                         "link": reverse_lazy("admin:index"),
+                        # الرئيسية متاحة للجميع
+                        "permission": lambda request: request.user.is_authenticated, 
                     },
                 ],
             },
@@ -211,13 +226,16 @@ UNFOLD = {
                 "items": [
                     {
                         "title": "العملاء",
-                        "icon": "person_add",
-                        "link": "/admin/partners/partner/", 
+                        "icon": "groups",
+                        "link": "/admin/partners/partner/?partner_type__exact=customer", 
+                        # يظهر للي معاه صلاحية فواتير المبيعات أو السوبر يوزر
+                        "permission": lambda request: request.user.has_perm('sales.view_salesinvoice') or request.user.is_superuser,
                     },
                     {
                         "title": "فواتير المبيعات",
                         "icon": "receipt_long",
                         "link": "/admin/sales/salesinvoice/",
+                        "permission": lambda request: request.user.has_perm('sales.view_salesinvoice'),
                     },
                 ],
             },
@@ -227,13 +245,16 @@ UNFOLD = {
                 "items": [
                     {
                         "title": "الموردين",
-                        "icon": "group",
-                        "link": "/admin/partners/partner/", 
+                        "icon": "local_shipping",
+                        "link": "/admin/partners/partner/?partner_type__exact=supplier", 
+                        # يظهر للي معاه صلاحية فواتير المشتريات أو السوبر يوزر
+                        "permission": lambda request: request.user.has_perm('purchases.view_purchaseinvoice') or request.user.is_superuser,
                     },
                     {
                         "title": "فواتير المشتريات",
                         "icon": "shopping_cart",
                         "link": "/admin/purchases/purchaseinvoice/",
+                        "permission": lambda request: request.user.has_perm('purchases.view_purchaseinvoice'),
                     },
                 ],
             },
@@ -245,16 +266,19 @@ UNFOLD = {
                         "title": "المنتجات",
                         "icon": "inventory_2",
                         "link": "/admin/inventory/product/",
+                        "permission": lambda request: request.user.has_perm('inventory.view_product'),
                     },
                     {
                         "title": "المخازن",
                         "icon": "warehouse",
                         "link": "/admin/inventory/warehouse/",
+                        "permission": lambda request: request.user.has_perm('inventory.view_warehouse'),
                     },
                     {
                         "title": "أرصدة المخزون",
                         "icon": "stacked_bar_chart",
                         "link": "/admin/inventory/stock/",
+                        "permission": lambda request: request.user.has_perm('inventory.view_stock'),
                     },
                 ],
             },
@@ -266,22 +290,26 @@ UNFOLD = {
                         "title": "شجرة الحسابات",
                         "icon": "account_tree",
                         "link": "/admin/accounting/account/",
+                        "permission": lambda request: request.user.has_perm('accounting.view_account'),
                     },
                     {
                         "title": "قيود اليومية",
                         "icon": "menu_book",
                         "link": "/admin/accounting/journalentry/",
+                        "permission": lambda request: request.user.has_perm('accounting.view_journalentry'),
                     },
                 ],
             },
             {
-                "title": "تحليل البيانات", # قسم مخصص للتقارير والداشبورد مستقبلاً
+                "title": "تحليل البيانات", 
                 "separator": True,
                 "items": [
                     {
                         "title": "التقارير الشاملة",
                         "icon": "analytics",
-                        "link": "#", # سيتم ربطها لاحقاً
+                        "link": "#", 
+                        # التقارير تظهر للمديرين وصلاحيات السوبر يوزر فقط
+                        "permission": lambda request: request.user.is_superuser or request.user.groups.filter(name='مدير فرع').exists(),
                     },
                 ],
             },
@@ -293,11 +321,13 @@ UNFOLD = {
                         "title": "المستخدمين والصلاحيات",
                         "icon": "manage_accounts",
                         "link": "/admin/users/user/",
+                        "permission": lambda request: request.user.is_superuser, # السوبر يوزر بس
                     },
                     {
                         "title": "تسلسل الأرقام",
                         "icon": "pin",
                         "link": "/admin/core/sequence/",
+                        "permission": lambda request: request.user.is_superuser, # السوبر يوزر بس
                     },
                 ],
             },
@@ -317,6 +347,7 @@ UNFOLD = {
         },
     ],
 }
+
 GRAPH_MODELS = {
     'all_applications': True,
     'group_models': True,

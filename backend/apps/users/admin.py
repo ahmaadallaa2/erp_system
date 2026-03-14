@@ -4,26 +4,48 @@ from django.utils.translation import gettext_lazy as _
 
 # --- استيرادات Unfold ---
 from unfold.admin import ModelAdmin
-from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
+from unfold.forms import (
+    AdminPasswordChangeForm, 
+    UserChangeForm as BaseUserChangeForm, 
+    UserCreationForm as BaseUserCreationForm
+)
 
 from .models import User
 
+# ==========================================
+# 1. إنشاء نماذج (Forms) مخصصة لتفهم حقولك الجديدة
+# ==========================================
+class CustomUserChangeForm(BaseUserChangeForm):
+    class Meta:
+        model = User
+        fields = '__all__'
+
+class CustomUserCreationForm(BaseUserCreationForm):
+    class Meta:
+        model = User
+        # بنقول للفورم: دي الحقول اللي هتسألي عليها وإنتي بتكريتي اليوزر (جانجو هيضيف password1 و 2 أوتوماتيك)
+        fields = ('email', 'full_name', 'user_type', 'company', 'branch')
+
+
+# ==========================================
+# 2. إعدادات الـ Admin
+# ==========================================
 @admin.register(User)
 class CustomUserAdmin(BaseUserAdmin, ModelAdmin): 
-    # استخدام نماذج Unfold لتحسين شكل حقول الإدخال
-    form = UserChangeForm
-    add_form = UserCreationForm
+    # استخدام النماذج المخصصة اللي لسه عاملينها
+    form = CustomUserChangeForm
+    add_form = CustomUserCreationForm
     change_password_form = AdminPasswordChangeForm
 
-    # 1. القائمة الخارجية (تم استبدال username بـ email وإضافة حقول الـ ERP)
+    # القائمة الخارجية 
     list_display = ('email', 'full_name', 'user_type', 'company', 'branch', 'is_active')
     list_filter = ('user_type', 'company', 'branch', 'is_staff', 'is_active')
     search_fields = ('email', 'full_name', 'phone')
     ordering = ('-date_joined',)
 
-    # 2. صفحة "تعديل" مستخدم حالي (Fieldsets)
+    # صفحة "تعديل" مستخدم حالي (Fieldsets)
     fieldsets = (
-        (None, {'fields': ('email', 'password')}), # الإيميل هو الأساس الآن
+        (None, {'fields': ('email', 'password')}), 
         (_('البيانات الشخصية'), {
             'fields': ('full_name', 'phone', 'job_title') 
         }),
@@ -32,7 +54,7 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin):
         }),
         (_('صلاحيات دجانغو'), {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
-            'classes': ('collapse',), # جعلها قابلة للطي لتقليل الزحمة
+            'classes': ('collapse',), 
         }),
         (_('التواريخ الهامة'), {
             'fields': ('last_login', 'date_joined'),
@@ -40,11 +62,12 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin):
         }),
     )
 
-    # 3. صفحة "إنشاء" مستخدم جديد (Add Fieldsets) - إضافة حتمية لمنع الأخطاء!
+    # صفحة "إنشاء" مستخدم جديد (Add Fieldsets)
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'password', 'full_name', 'user_type', 'company', 'branch'),
+            # التعديل السحري هنا: استخدام password1 و password2 بدلاً من password
+            'fields': ('email', 'full_name', 'user_type', 'company', 'branch', 'password1', 'password2'),
         }),
     )
 
