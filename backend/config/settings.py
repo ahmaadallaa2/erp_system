@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 SECRET_KEY = os.getenv('SECRET_KEY')  # Use environment variable or default for development
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG') == 'False'
+DEBUG = os.getenv('DEBUG') == 'True'
 
 
 ALLOWED_HOSTS = ['*']
@@ -23,7 +23,14 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.ngrok.io',
     'https://*.ngrok-free.dev',  # <-- السطر ده هو اللي هيحل المشكلة
 ]
+# جانجو هيحدف أي حد مش مسجل على اللينك اللي اسمه 'login' (اللي هو الرئيسي دلوقتي)
+LOGIN_URL = 'login' 
 
+# بعد ما يكتب الإيميل والباسورد صح، هيروح فين؟ (هنوديه للداشبورد)
+# غير مسار /dashboard/ للمسار بتاع الداشبورد بتاعتك
+LOGIN_REDIRECT_URL = '/dashboard/' 
+
+LOGOUT_REDIRECT_URL = 'login'
 
 # Application definition
 
@@ -66,14 +73,13 @@ MIDDLEWARE = [
     # 5. حماية الـ CSRF
     'django.middleware.csrf.CsrfViewMiddleware',
 
-    # 6. التوثيق (لازم يجي بعد الـ Session عشان يعرف مين اليوزر)
     'django.contrib.auth.middleware.AuthenticationMiddleware',
 
-    # 7. الرسائل المؤقتة
-    'django.contrib.messages.middleware.MessageMiddleware',
+    # 7. قفل السيستم (الميدلوير الجديد)
+    'django.contrib.auth.middleware.LoginRequiredMiddleware', # <--- ضيف السطر ده هنا
 
-    # 8. حماية الـ Clickjacking
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # 8. الرسائل المؤقتة
+    'django.contrib.messages.middleware.MessageMiddleware',
 
     # 9. الميدلوير الخاص بينا (آخر واحد عشان يضمن إن الـ Auth خلص واليوزر بقى موجود)
     'apps.core.middleware.ThreadLocalMiddleware',

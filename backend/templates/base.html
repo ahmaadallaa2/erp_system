@@ -1,0 +1,63 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trust ERP | {% block title %}النظام المتكامل{% endblock %}</title>
+    
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.rtl.min.css" />
+
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+
+    {% block extra_head %}{% endblock %}
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    {% include 'parts/sidebar.html' %}
+
+    <div class="main-content" id="mainContent">
+        
+        {% include 'parts/navbar.html' %}
+
+        {% if messages %}
+            <div class="container-fluid px-0 mb-3">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm border-0 rounded-3 d-flex align-items-center" role="alert">
+                    {% if message.tags == 'success' %}<i class="fa-solid fa-circle-check fa-lg me-2"></i>
+                    {% elif message.tags == 'error' %}<i class="fa-solid fa-circle-exclamation fa-lg me-2"></i>
+                    {% elif message.tags == 'warning' %}<i class="fa-solid fa-triangle-exclamation fa-lg me-2"></i>
+                    {% else %}<i class="fa-solid fa-circle-info fa-lg me-2"></i>
+                    {% endif %}
+                    <div>{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="flex-grow-1">
+            {% block content %}{% endblock %}
+        </div>
+
+        {% include 'parts/footer.html' %}
+        
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script src="{% static 'js/base.js' %}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

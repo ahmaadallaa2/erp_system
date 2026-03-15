@@ -1,0 +1,217 @@
+{% load static %}
+
+{% with user_groups=user.groups.all|stringformat:'s' %}
+
+<nav class="sidebar" id="sidebar">
+    <div class="brand py-4">
+        <a href="#" class="text-decoration-none d-flex flex-column align-items-center">
+            <div class="logo-circle mb-3 shadow">
+                <img src="{% static 'img/logo.png' %}" alt="Trust ERP Logo"> 
+            </div>
+            <span class="trust-text fw-bold tracking-wide"> BUILD & TRUST </span>
+        </a>
+    </div>
+    
+    <hr class="sidebar-divider my-0 border-secondary opacity-25">
+
+    <ul class="nav flex-column pe-0 mt-3" id="sidebarNav">
+        
+        <li class="nav-item">
+            <a class="nav-link" href="#">
+                <i class="fa-solid fa-chart-pie"></i> لوحة التحكم
+            </a>
+        </li>
+        
+        {% if 'Sales Rep' in user_groups or 'Manager' in user_groups or 'Accountant' in user_groups or user.is_superuser %}
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-toggle="collapse" href="#salesSubmenu">
+                <span><i class="fa-solid fa-cart-shopping"></i> المبيعات</span> <i class="fa-solid fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="collapse" id="salesSubmenu">
+                <ul class="nav flex-column">
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-file-invoice-dollar small me-2"></i> إدارة الفواتير</a></li>
+                    
+                    {% if 'Sales Rep' in user_groups or 'Manager' in user_groups or user.is_superuser %}
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-plus small me-2"></i> إنشاء فاتورة</a></li>
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-file-signature small me-2"></i> إدارة عروض الأسعار</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-pen-to-square small me-2"></i> إنشاء عرض سعر</a></li>
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-rotate-left small me-2"></i> الفواتير المرتجعة</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-clock-rotate-left small me-2"></i> الفواتير الدورية</a></li>
+                    {% endif %}
+                    
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-money-bill-wave small me-2"></i> مدفوعات العملاء</a></li>
+                    
+                    {% if user.is_superuser or 'Manager' in user_groups %}
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-sliders small me-2"></i> إعدادات المبيعات</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </li>
+        {% endif %}
+
+        {% if 'Warehouse' in user_groups or 'Manager' in user_groups or 'Accountant' in user_groups or user.is_superuser %}
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-toggle="collapse" href="#purchasesSubmenu">
+                <span><i class="fa-solid fa-boxes-packing"></i> المشتريات</span> <i class="fa-solid fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="collapse" id="purchasesSubmenu">
+                <ul class="nav flex-column">
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-file-invoice small me-2"></i> فواتير الشراء</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-rotate-left small me-2"></i> مرتجعات المشتريات</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-truck-field small me-2"></i> اداره الموردين</a></li>
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-money-bill-transfer small me-2"></i> مدفوعات الموردين</a></li>
+                    
+                    {% if user.is_superuser or 'Manager' in user_groups %}
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-sliders small me-2"></i> اعدادات فواتير الشراء</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-user-gear small me-2"></i> إعدادات الموردين</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </li>
+        {% endif %}
+
+        {% if 'Accountant' in user_groups or 'Manager' in user_groups or user.is_superuser %}
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-toggle="collapse" href="#financeSubmenu">
+                <span><i class="fa-solid fa-sack-dollar"></i> الإدارة المالية</span> <i class="fa-solid fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="collapse" id="financeSubmenu">
+                <ul class="nav flex-column">
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-file-invoice-dollar small me-2"></i> المصروفات</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-hand-holding-dollar small me-2"></i> سندات القبض</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-building-columns small me-2"></i> خزائن وحسابات بنكية</a></li>
+                    {% if user.is_superuser or 'Manager' in user_groups %}
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-scale-balanced small me-2"></i> إعدادات المالية</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </li>
+        {% endif %}
+
+        {% if 'Sales Rep' in user_groups or 'Manager' in user_groups or 'Accountant' in user_groups or user.is_superuser %}
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-toggle="collapse" href="#partnersSubmenu">
+                <span><i class="fa-solid fa-users"></i> العملاء</span> <i class="fa-solid fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="collapse" id="partnersSubmenu">
+                <ul class="nav flex-column">
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-address-card small me-2"></i> إدارة العملاء</a></li>
+                    {% if 'Sales Rep' in user_groups or 'Manager' in user_groups or user.is_superuser %}
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-user-plus small me-2"></i> إضافة عميل جديد</a></li>
+                    {% endif %}
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-address-book small me-2"></i> قائمة الاتصال</a></li>
+                    {% if user.is_superuser or 'Manager' in user_groups %}
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-user-gear small me-2"></i> إعدادات العميل</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </li>
+        {% endif %}
+
+        {% if 'Warehouse' in user_groups or 'Manager' in user_groups or user.is_superuser %}
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-toggle="collapse" href="#inventorySubmenu">
+                <span><i class="fa-solid fa-boxes-stacked"></i> المخزون</span> <i class="fa-solid fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="collapse" id="inventorySubmenu">
+                <ul class="nav flex-column">
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-box-open small me-2"></i> المنتجات والخدمات</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-file-contract small me-2"></i> إدارة الاذون المخزنية</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-tags small me-2"></i> قوائم الأسعار</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-warehouse small me-2"></i> المستودعات</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-clipboard-check small me-2"></i> إدارة الجرد</a></li>
+                    {% if user.is_superuser or 'Manager' in user_groups %}
+                    <li><hr class="dropdown-divider border-secondary my-1" style="opacity: 0.1"></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-sliders small me-2"></i> إعدادات المخزون</a></li>
+                    <li><a class="nav-link" href="#"><i class="fa-solid fa-gears small me-2"></i> إعدادات المنتجات</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </li>
+        {% endif %}
+
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-bs-toggle="collapse" href="#reportsMenu">
+                <span><i class="fa-solid fa-chart-line"></i> التقارير</span> <i class="fa-solid fa-chevron-down ms-auto"></i>
+            </a>
+            <div class="collapse" id="reportsMenu">
+                <ul class="nav flex-column">
+                    {% if 'Sales Rep' in user_groups or 'Manager' in user_groups or 'Accountant' in user_groups or user.is_superuser %}
+                    <li class="nav-item"><a href="#" class="nav-link"><i class="fa-solid fa-file-invoice-dollar small me-2 text-danger"></i> تقارير المبيعات</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link"><i class="fa-solid fa-users-viewfinder small me-2 text-info"></i> تقارير العملاء</a></li>
+                    {% endif %}
+                    
+                    {% if 'Warehouse' in user_groups or 'Manager' in user_groups or 'Accountant' in user_groups or user.is_superuser %}
+                    <li class="nav-item"><a href="#" class="nav-link"><i class="fa-solid fa-bag-shopping small me-2 text-warning"></i> تقارير المشتريات</a></li>
+                    <li class="nav-item"><a href="#" class="nav-link"><i class="fa-solid fa-boxes-stacked small me-2 text-success"></i> تقارير المخزون</a></li>
+                    {% endif %}
+
+                    {% if 'Accountant' in user_groups or 'Manager' in user_groups or user.is_superuser %}
+                     <li class="nav-item"><a href="#" class="nav-link"><i class="fa-solid fa-scale-balanced small me-2 text-danger"></i> تقارير مالية</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </li>
+
+        {% if 'Manager' in user_groups or user.is_superuser %}
+        <li class="nav-item mt-4 pt-3 border-top border-secondary border-opacity-25">
+            <a class="nav-link" href="#">
+                <i class="fa-solid fa-gears"></i> إعدادات النظام
+            </a>
+        </li>
+        {% endif %}
+        
+    </ul>
+</nav>
+
+{% endwith %}
+
+<style>
+    /* التعديلات الجديدة للوجو المطور */
+    .logo-circle {
+        width: 110px;
+        height: 110px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #ffffff;
+        padding: 12px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        transition: transform 0.3s ease;
+        overflow: hidden;
+    }
+
+    .logo-circle:hover {
+        transform: scale(1.08);
+    }
+
+    .logo-circle img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .trust-text {
+        font-size: 1.4rem !important;
+        letter-spacing: 2px;
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        margin-top: 5px;
+    }
+
+    .nav-link.active {
+        background: rgba(255, 255, 255, 0.1);
+        border-right: 4px solid var(--bs-primary);
+        color: white !important;
+    }
+</style>
