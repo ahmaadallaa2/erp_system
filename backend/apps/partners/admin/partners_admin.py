@@ -1,29 +1,52 @@
 from django.contrib import admin
+from django.db.models import Sum, DecimalField, F, Case, When, Q
+from django.db.models.functions import Coalesce
 from unfold.admin import ModelAdmin
-from ..models import Partner
 from decimal import Decimal
+from ..models import Partner
 
 @admin.register(Partner)
 class PartnerAdmin(ModelAdmin):
-    # --- تعديل: فلترة البيانات بناءً على الصلاحيات (الذكاء الاصطناعي للسيستم) ---
+    # =========================================================================
+    # 🚀 تحسين الأداء والصلاحيات (Query Optimization & RBAC)
+    # =========================================================================
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        # لو سوبر يوزر، اعرض كل حاجة
-        if request.user.is_superuser:
-            return qs
         
-        # لو الموظف في مجموعة المبيعات، اعرض العملاء فقط
-        if request.user.groups.filter(name='فريق المبيعات').exists():
-            return qs.filter(partner_type='customer')
-            
-        # لو الموظف في مجموعة المشتريات أو المخازن، اعرض الموردين فقط
-        if request.user.groups.filter(name='أمناء المخازن').exists() or \
-           request.user.groups.filter(name='الإدارة المالية').exists():
-            return qs.filter(partner_type='supplier')
-            
+        # 1. فلترة الصلاحيات بذكاء (Fetching Groups ONCE in memory)
+        # بدل ما نعمل query لكل جروب، بنجيب أسامي الجروبات كلها مرة واحدة ونخزنها في set
+        user_groups = set(request.user.groups.values_list('name', flat=True))
+        
+        if not request.user.is_superuser:
+            if 'فريق المبيعات' in user_groups:
+                qs = qs.filter(partner_type='customer')
+            elif 'أمناء المخازن' in user_groups or 'الإدارة المالية' in user_groups:
+                qs = qs.filter(partner_type='supplier')
+
+        # 2. حساب الرصيد الفعلي عبر الـ Annotate لحل مشكلة N+1 Query
+        qs = qs.annotate(
+            total_debit=Coalesce(
+                Sum('journal_items__debit', filter=Q(journal_items__entry__status='posted')), 
+                Decimal('0.00'), 
+                output_field=DecimalField()
+            ),
+            total_credit=Coalesce(
+                Sum('journal_items__credit', filter=Q(journal_items__entry__status='posted')), 
+                Decimal('0.00'), 
+                output_field=DecimalField()
+            ),
+            # حساب الرصيد الصافي في الـ DB بناءً على نوع الشريك
+            annotated_balance=Case(
+                When(partner_type='customer', then=F('initial_balance') + F('total_debit') - F('total_credit')),
+                default=F('initial_balance') + F('total_credit') - F('total_debit'),
+                output_field=DecimalField()
+            )
+        )
         return qs
 
-    # 1. القائمة الرئيسية
+    # =========================================================================
+    # 1. القائمة الرئيسية (List View)
+    # =========================================================================
     list_display = (
         'code', 
         'name', 
@@ -33,7 +56,6 @@ class PartnerAdmin(ModelAdmin):
         'is_active'
     )
     
-    # 2. الفلاتر الجانبية
     list_filter = (
         'partner_type', 
         'is_active', 
@@ -41,7 +63,6 @@ class PartnerAdmin(ModelAdmin):
         'created_at'
     )
     
-    # 3. حقول البحث
     search_fields = (
         'code', 
         'name', 
@@ -62,7 +83,9 @@ class PartnerAdmin(ModelAdmin):
         'updated_by'
     )
 
-    # 5. تقسيم صفحة الإضافة والتعديل (Fieldsets)
+    # =========================================================================
+    # 2. تقسيم صفحة الإضافة والتعديل (Fieldsets)
+    # =========================================================================
     fieldsets = (
         ('البيانات الأساسية والتصنيف', {
             'fields': (
@@ -90,7 +113,7 @@ class PartnerAdmin(ModelAdmin):
                 'responsible',
                 'notes'
             ),
-            'description': 'الرصيد الافتتاحي يتم ضبطه مرة واحدة فقط. الرصيد الفعلي يتحدث تلقائياً.'
+            'description': 'الرصيد الافتتاحي يتم ضبطه مرة واحدة فقط. الرصيد الفعلي يتحدث تلقائياً من الحسابات.'
         }),
         ('سجلات النظام', {
             'fields': (
@@ -101,18 +124,29 @@ class PartnerAdmin(ModelAdmin):
         }),
     )
 
+    # =========================================================================
+    # 3. الدوال المحسوبة والمساعدة
+    # =========================================================================
+    @admin.display(description="الرصيد الفعلي (من الحسابات)", ordering='annotated_balance')
     def get_current_balance(self, obj):
-        balance = obj.current_balance or Decimal('0.00')
-        if balance > 0:
-            return f"{balance} (له)" if obj.partner_type != 'customer' else f"{balance} (عليه)"
-        elif balance < 0:
-            return f"{abs(balance)} (عليه)" if obj.partner_type != 'customer' else f"{abs(balance)} (له)"
-        return "0.00"
-    
-    get_current_balance.short_description = "الرصيد الفعلي (من الحسابات)"
+        """يعرض الرصيد المحسوب مسبقاً من الـ QuerySet"""
+        
+        # حماية لو كان Object جديد في صفحة الـ Add
+        if not obj or not obj.pk:
+            return "0.00"
 
-    # --- لمسة احترافية إضافية للعرض: تعبئة حقل created_by أوتوماتيكياً ---
+        # نقرأ القيمة المحسوبة عبر الـ Annotate (أو نرجع للـ property لو مش موجودة كاحتياط)
+        balance = getattr(obj, 'annotated_balance', obj.current_balance) or Decimal('0.00')
+        
+        if balance > 0:
+            return f"{balance:,.2f} (له)" if obj.partner_type != 'customer' else f"{balance:,.2f} (عليه)"
+        elif balance < 0:
+            return f"{abs(balance):,.2f} (عليه)" if obj.partner_type != 'customer' else f"{abs(balance):,.2f} (له)"
+        
+        return "0.00"
+
     def save_model(self, request, obj, form, change):
+        """حفظ سجلات الـ Audit أوتوماتيكياً"""
         if not change: # لو سجل جديد
             obj.created_by = request.user
         obj.updated_by = request.user
