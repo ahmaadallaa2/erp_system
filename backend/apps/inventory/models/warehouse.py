@@ -1,17 +1,30 @@
+# apps/inventory/models/warehouse.py
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from apps.core.models import SoftDeleteModel, Branch, Sequence 
 from apps.users.models import User
 
 class Warehouse(SoftDeleteModel):
-    """
-    ملاحظة: هذا الكلاس يورث حقول (created_at, updated_at, created_by, updated_by)
-    تلقائياً من SoftDeleteModel -> BaseModel.
-    """
+    
+    # --- الإضافة الجديدة: أنواع المخازن ---
+    WAREHOUSE_TYPES = [
+        ('main', _('مخزن رئيسي (Main)')),
+        ('sub',  _('مخزن فرعي / معرض (Showroom)')),
+    ]
+
     name = models.CharField(_("اسم المخزن"), max_length=100)
     
     # ضفنا blank=True عشان الفورم متطلبوش اجباري، والسيستم هو اللي هيكتبه في الـ save
     code = models.CharField(_("كود المخزن"), max_length=20, unique=True, blank=True)
+    
+    # الإضافة الجوهرية للوجيك الحركات
+    warehouse_type = models.CharField(
+        _("نوع المخزن"), 
+        max_length=20, 
+        choices=WAREHOUSE_TYPES, 
+        default='sub'
+    )
     
     branch = models.ForeignKey(
         Branch, 
@@ -39,14 +52,14 @@ class Warehouse(SoftDeleteModel):
         unique_together = ('name', 'branch')  # ممنوع تكرار اسم المخزن في نفس الفرع
 
     def __str__(self):
-        return f"{self.name} ({self.branch.name})"
+        # تعديل بسيط لعرض نوع المخزن جنب اسمه
+        return f"{self.name} - {self.get_warehouse_type_display()} ({self.branch.name})"
 
     def save(self, *args, **kwargs):
         # توليد التسلسل التلقائي لكود المخزن
         if not self.code:
             # لو المخزن بيورث company_id من BaseModel تقدر تستخدم self.company_id
             # لو لأ، ممكن نعتمد على id الفرع أو شركة الفرع (self.branch.company_id)
-            # هنا استخدمت getattr عشان لو company_id موروثة يقرأها، لو لا ياخد الـ branch_id كبديل احتياطي
             company_id = getattr(self, 'company_id', getattr(self.branch, 'company_id', self.branch_id))
             
             seq_key = f"warehouse_code_comp_{company_id}"

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin
+from unfold.admin import ModelAdmin, TabularInline
 
 from .models import (
     Category,
@@ -7,6 +7,7 @@ from .models import (
     Product,
     Warehouse,
     Stock,
+    StockDocument,
     StockMovement
 )
 
@@ -35,23 +36,30 @@ class UnitAdmin(ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(ModelAdmin):
-    list_display = ('name', 'sku', 'category', 'unit', 'sale_price', 'average_cost', 'product_type', 'is_active')
-    list_filter = ('category', 'product_type', 'is_active', 'created_at')
+    list_display = ('name', 'sku', 'category', 'sale_price', 'average_cost', 'product_type', 'is_active')
+    list_filter = ('category', 'product_type', 'is_active', 'created_at', 'company')
     search_fields = ('name', 'sku', 'barcode', 'description')
-    ordering = ('name',)
+    ordering = ('company', 'name')
     
-    # حقل SKU ومتوسط التكلفة للقراءة فقط (التكلفة تُحسب آلياً من المشتريات)
+    # تحسين الأداء: الدروب داون هيتحول لبحث AJAX سريع
+    autocomplete_fields = ('company', 'category', 'unit', 'income_account', 'expense_account')
+    
+    # حقول للقراءة فقط (التكلفة تُحسب آلياً من المشتريات)
     readonly_fields = ('sku', 'average_cost', 'created_at', 'updated_at', 'created_by', 'updated_by')
 
     fieldsets = (
         ('بيانات أساسية', {
-            'fields': ('company', 'name', 'sku', 'product_type', 'barcode', 'is_active')
+            'fields': ('company', 'name', 'sku', 'product_type', 'barcode', 'image', 'is_active')
         }),
         ('التصنيف والوحدة', {
             'fields': ('category', 'unit')
         }),
         ('التسعير والتكلفة', {
             'fields': ('cost_price', 'average_cost', 'sale_price')
+        }),
+        ('الربط المحاسبي (ERP)', {
+            'fields': ('income_account', 'expense_account'),
+            'description': 'اتركها فارغة إذا كنت تريد استخدام الحسابات الافتراضية للتصنيف.'
         }),
         ('إدارة المخزون وتفاصيل أخرى', {
             'fields': ('reorder_point', 'description')
@@ -62,28 +70,27 @@ class ProductAdmin(ModelAdmin):
         }),
     )
 
+    def save_model(self, request, obj, form, change):
+        """تسجيل المستخدم الذي قام بالإضافة أو التعديل آلياً"""
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
 
 @admin.register(Warehouse)
 class WarehouseAdmin(ModelAdmin):
-    # 1. عرض الأعمدة في القائمة الرئيسية (ضفنا الكود في البداية)
-    list_display = ('code', 'name', 'branch', 'keeper', 'is_active')
-    
-    # 2. الفلاتر الجانبية
-    list_filter = ('branch', 'is_active')
-    
-    # 3. حقول البحث (بحث بالكود، الاسم، اسم الفرع، أو اسم الأمين)
+    list_display = ('code', 'name', 'warehouse_type', 'branch', 'keeper', 'is_active')
+    list_filter = ('warehouse_type', 'branch', 'is_active')
     search_fields = ('code', 'name', 'branch__name', 'keeper__first_name', 'keeper__last_name')
-    
-    # 4. الترتيب الافتراضي (يفضل الترتيب بالكود أو الاسم)
     ordering = ('code', 'name')
     
-    # 5. الحقول غير القابلة للتعديل (الكود وحقول النظام)
+    autocomplete_fields = ('branch', 'keeper')
     readonly_fields = ('code', 'created_at', 'updated_at', 'created_by', 'updated_by')
 
-    # 6. تقسيم صفحة الإضافة/التعديل بشكل مريح للعين (Fieldsets)
     fieldsets = (
         ('البيانات الأساسية', {
-            'fields': ('name', 'code', 'is_active')
+            'fields': ('name', 'code', 'warehouse_type', 'is_active')
         }),
         ('الإدارة والموقع', {
             'fields': ('branch', 'address', 'keeper')
@@ -94,8 +101,15 @@ class WarehouseAdmin(ModelAdmin):
         }),
     )
 
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+
 # ==========================================
-# 3. الأرصدة وحركات المخزون (Inventory & Transactions)
+# 3. الأرصدة (رصيد المخزن اللحظي)
 # ==========================================
 
 @admin.register(Stock)
@@ -105,8 +119,8 @@ class StockAdmin(ModelAdmin):
     search_fields = ('product__name', 'product__sku')
     ordering = ('warehouse', 'product')
     
-    # الرصيد يتم تعديله فقط عبر حركات المخزون الرسمية
-    readonly_fields = ('quantity',)
+    autocomplete_fields = ('product', 'warehouse')
+    readonly_fields = ('quantity', 'created_at', 'updated_at')
 
     fieldsets = (
         ('بيانات التخزين', {
@@ -118,28 +132,65 @@ class StockAdmin(ModelAdmin):
     )
 
 
-@admin.register(StockMovement)
-class StockMovementAdmin(ModelAdmin):
-    list_display = ('id', 'product', 'warehouse', 'movement_type', 'quantity', 'created_at', 'created_by')
-    list_filter = ('movement_type', 'warehouse', 'created_at', 'product__category')
-    search_fields = ('product__name', 'reference', 'notes')
+# ==========================================
+# 4. أذونات المخازن وحركاتها (Master-Detail)
+# ==========================================
+
+class StockMovementInline(TabularInline):
+    """سطور الإذن (حركات الأصناف)"""
+    model = StockMovement
+    extra = 1  # سطر واحد فارغ افتراضياً
+    autocomplete_fields = ('product',)
+    
+    def has_change_permission(self, request, obj=None):
+        """منع تعديل السطور بعد حفظ الإذن"""
+        if obj is not None:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        """منع حذف السطور بعد حفظ الإذن"""
+        if obj is not None:
+            return False
+        return super().has_delete_permission(request, obj)
+
+
+@admin.register(StockDocument)
+class StockDocumentAdmin(ModelAdmin):
+    """إذن المخزن الرئيسي (الأب)"""
+    list_display = ('id', 'document_type', 'warehouse', 'date', 'reference', 'created_by')
+    list_filter = ('document_type', 'warehouse', 'date')
+    search_fields = ('reference', 'notes', 'warehouse__name')
     ordering = ('-created_at',)
     
-    readonly_fields = ('created_at',)
+    autocomplete_fields = ('warehouse', 'journal_entry')
+    readonly_fields = ('created_at', 'created_by', 'updated_at', 'updated_by')
+
+    # دمج السطور (الابن) داخل صفحة الإذن (الأب)
+    inlines = [StockMovementInline]
 
     fieldsets = (
-        ('بيانات الحركة الأساسية', {
-            'fields': ('product', 'warehouse', 'movement_type', 'quantity')
+        ('بيانات الإذن المخزني', {
+            'fields': ('document_type', 'warehouse', 'date')
         }),
         ('التوثيق والارتباطات', {
-            'fields': ('reference', 'notes', 'created_by')
+            'fields': ('reference', 'journal_entry', 'notes')
+        }),
+        ('سجلات النظام', {
+            'fields': ('created_at', 'created_by', 'updated_at', 'updated_by'),
+            'classes': ('collapse',),
         }),
     )
 
+    def save_model(self, request, obj, form, change):
+        """تسجيل الموظف اللي عمل الإذن أوتوماتيك"""
+        if not change:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
     def has_change_permission(self, request, obj=None):
-        """
-        منع تعديل الحركة المخزنية بعد إنشائها للحفاظ على دقة الأرصدة
-        """
+        """منع تعديل الإذن بالكامل بعد حفظه للحفاظ على دقة الأرصدة"""
         if obj is not None:
             return False
         return super().has_change_permission(request, obj)

@@ -16,12 +16,11 @@ class SalesInvoice(SoftDeleteModel):
     PAYMENT_CHOICES = [
         ('credit', 'آجل (على الحساب)'),
         ('cash', 'كاش (نقدي)'),
+        ('bank transfer', 'تحويل بنكي')
     ]
 
     invoice_number = models.CharField(_("رقم الفاتورة"), max_length=50, unique=True, blank=True)
     
-    # هنا بنربط بالعميل (Partner)
-   # ... جوه كلاس SalesInvoice ...
     
     customer = models.ForeignKey(
         'partners.Partner', 
@@ -40,7 +39,7 @@ class SalesInvoice(SoftDeleteModel):
         null=True, # حطيناها True مؤقتاً عشان المايجريشن ميضربش لو عندك فواتير قديمة متسجلة
     )
 
-    payment_type = models.CharField(_("طريقة الدفع"), max_length=10, choices=PAYMENT_CHOICES, blank=True)
+    payment_type = models.CharField(_("طريقة الدفع"), max_length=20, choices=PAYMENT_CHOICES, blank=True)
 
     treasury_account = models.ForeignKey(
         'accounting.Account', 

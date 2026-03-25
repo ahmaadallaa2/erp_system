@@ -1,8 +1,8 @@
-# apps/sales/services/sales_service.py
-
 from decimal import Decimal
 from django.db import transaction
-from apps.inventory.models import StockMovement, Stock
+from django.core.exceptions import ObjectDoesNotExist
+from apps.inventory.models import StockDocument
+from apps.inventory.services.stock_service import StockService
 from apps.accounting.models import Journal, JournalEntry, JournalItem, Account
 
 class SalesService:
@@ -10,118 +10,139 @@ class SalesService:
     def process_sales_invoice(invoice):
         """
         خدمة ترحيل فاتورة المبيعات:
-        1. خصم البضاعة من المخزن (موديل Stock وتحديث حركات المخازن).
-        2. إنشاء قيد يومية مزدوج: 
-           - (إيرادات المبيعات) بناءً على طريقة الدفع كاش/آجل.
-           - (تكلفة البضاعة المباعة) لضبط جرد المخزن وحساب الأرباح.
+        1. إنشاء إذن صرف مخزني (StockDocument).
+        2. خصم الأصناف من المخزن عبر (StockService).
+        3. إنشاء قيد محاسبي مزدوج (إيرادات + تكلفة بضاعة مباعة).
+        4. الربط الكامل بين المستندات لضمان التتبع (Traceability).
         """
-        # حائط الصد: التأكد من عدم تكرار القيد لنفس الفاتورة
-        if JournalEntry.objects.filter(reference=invoice.invoice_number).exists():
-            return False, "الفاتورة تم ترحيلها مسبقاً ولا يمكن تكرار القيد."
 
-        # التأكد من وجود منتجات في الفاتورة
+        # 1. التحقق من عدم الترحيل المسبق (Idempotency)
+        if JournalEntry.objects.filter(reference=invoice.invoice_number).exists():
+            return False, "هذه الفاتورة تم ترحيلها محاسبياً مسبقاً."
+
         if not invoice.items.exists():
-            return False, "لا يمكن تأكيد فاتورة فارغة بدون منتجات."
+            return False, "لا يمكن ترحيل فاتورة لا تحتوي على أصناف."
 
         with transaction.atomic():
-            # الاعتماد على المخزن المحدد في الفاتورة نفسها
-            if not invoice.warehouse:
-                return False, "فشل: يرجى تحديد المخزن الذي سيتم صرف البضاعة منه في الفاتورة."
-
-            # ==========================================
-            # 1. حركة المخازن (صرف البضاعة وتحديث الأرصدة)
-            # ==========================================
-            for item in invoice.items.all():
-                # أ. تسجيل حركة الصرف في الدفاتر
-                StockMovement.objects.create(
-                    warehouse=invoice.warehouse,
-                    product=item.product,
-                    movement_type='OUT', 
-                    quantity=item.quantity,
-                    reference=invoice.invoice_number,
-                    notes=f"صرف مبيعات للعميل: {invoice.customer.name}"
-                )
-                
-                # ب. تحديث رصيد المخزن الفعلي في موديل الأرصدة (Stock)
-                stock_record, created = Stock.objects.get_or_create(
-                    product=item.product,
-                    warehouse=invoice.warehouse,
-                    defaults={'quantity': 0}
-                )
-                
-                # قفل الأمان الصارم: منع البيع لو الرصيد لا يكفي
-                if stock_record.quantity < item.quantity:
-                    return False, f"مرفوض أمنياً! رصيد المنتج '{item.product.name}' في المخزن لا يكفي. المتاح: {stock_record.quantity}"
-                
-                # خصم الكمية وحفظها
-                stock_record.quantity -= item.quantity
-                stock_record.save(update_fields=['quantity'])
-
-            # ==========================================
-            # 2. الترحيل المحاسبي المزدوج (بيع وتكلفة)
-            # ==========================================
-            journal, _ = Journal.objects.get_or_create(
-                code='SAL', 
-                defaults={'name': 'دفتر المبيعات', 'type': 'sale'}
-            )
-            
+            # ========================================================
+            # 2. إنشاء "إذن الصرف" المخزني (الأب)
+            # ========================================================
             try:
-                # حسابات قيد الإيرادات
-                sales_revenue_acc = Account.objects.get(code='4001') 
-                # حسابات قيد التكلفة (الجديد)
-                cogs_acc = Account.objects.get(code='5001')          # تكلفة البضاعة المباعة
-                inventory_acc = Account.objects.get(code='1004')     # حساب المخزون كأصل
-                
-                # تحديد الطرف المدين بناءً على طريقة الدفع
-                if getattr(invoice, 'payment_type', 'credit') == 'cash':
-                    if not invoice.treasury_account:
-                        return False, "فشل: يرجى تحديد حساب الخزينة لفاتورة الكاش."
-                    debit_account = invoice.treasury_account
-                    partner_link = None # الفلوس في الخزنة، مفيش مديونية على العميل
-                    desc = "مبيعات نقدية (كاش)"
-                else:
-                    debit_account = Account.objects.get(code='1003') # حساب العملاء
-                    partner_link = invoice.customer
-                    desc = "مبيعات آجلة (على الحساب)"
-                    
-            except Account.DoesNotExist:
-                return False, "فشل: يرجى التأكد من إعدادات شجرة الحسابات (العملاء 1003، الإيرادات 4001، التكلفة 5001، المخزون 1004، والخزينة)."
+                stock_doc = StockDocument.objects.create(
+                    document_type='OUT', # صادر / صرف
+                    warehouse=invoice.warehouse,
+                    reference=invoice.invoice_number,
+                    notes=f"إذن صرف آلي للفاتورة رقم: {invoice.invoice_number}",
+                    created_by=invoice.created_by
+                )
+            except Exception as e:
+                return False, f"فشل في إنشاء إذن المخزن: {str(e)}"
 
-            # إنشاء رأس القيد
-            entry = JournalEntry.objects.create(
+            total_cogs = Decimal('0.00') # لتجميع تكلفة البضاعة المباعة
+
+            # ========================================================
+            # 3. معالجة الأصناف (مخازن + حساب تكلفة)
+            # ========================================================
+            for item in invoice.items.all():
+                # أ. تسجيل حركة الصنف وتحديث الرصيد اللحظي
+                try:
+                    # نستخدم السيرفيس المركزية لضمان استخدام الـ F() وتجنب تضارب البيانات
+                    StockService.register_movement(
+                        document=stock_doc,
+                        product=item.product,
+                        quantity=item.quantity,
+                        notes=f"مبيعات - فاتورة {invoice.invoice_number}"
+                    )
+                except Exception as e:
+                    # في حالة فشل الصرف (مثل نقص الرصيد)، الترانزاكشن بالكامل ستتراجع
+                    raise Exception(f"خطأ في صرف الصنف {item.product.name}: {str(e)}")
+
+                # ب. حساب تكلفة الصنف بناءً على المتوسط المرجح (AVCO) المسجل في كارت الصنف
+                # نستخدم average_cost وفي حالة عدم وجوده نستخدم سعر التكلفة الافتراضي
+                unit_cost = item.product.average_cost or item.product.cost_price or Decimal('0.00')
+                total_cogs += (item.quantity * unit_cost)
+
+            # ========================================================
+            # 4. الترحيل المحاسبي (قيد اليومية)
+            # ========================================================
+            # أ. تجهيز الحسابات والدفاتر
+            try:
+                journal = Journal.objects.get(code='SAL') # دفتر المبيعات
+                sales_revenue_acc = Account.objects.get(code='4001') # حساب الإيرادات
+                cogs_acc = Account.objects.get(code='5001')          # تكلفة البضاعة المباعة
+                inventory_acc = Account.objects.get(code='1004')     # حساب المخزون (أصل)
+
+                # تحديد الطرف المدين (خزينة للكاش / حساب العملاء للآجل)
+                payment_type = getattr(invoice, 'payment_type', 'credit')
+                if payment_type == 'cash':
+                    if not invoice.treasury_account:
+                        raise Exception("يجب تحديد حساب الخزينة للفاتورة النقدية.")
+                    debit_account = invoice.treasury_account
+                    partner_link = None
+                    entry_desc = f"إثبات مبيعات نقدية - فاتورة {invoice.invoice_number}"
+                else:
+                    debit_account = Account.objects.get(code='1003') # حساب العملاء العام
+                    partner_link = invoice.customer
+                    entry_desc = f"إثبات مبيعات آجلة - عميل: {invoice.customer.name}"
+
+            except ObjectDoesNotExist as e:
+                raise Exception(f"فشل الترحيل: تأكد من إعداد شجرة الحسابات (أكواد: 4001, 5001, 1004, 1003). التفاصيل: {str(e)}")
+
+            # ب. إنشاء رأس القيد
+            journal_entry = JournalEntry.objects.create(
                 journal=journal,
                 date=invoice.date,
                 reference=invoice.invoice_number,
                 status='posted',
-                notes=f"إثبات فاتورة مبيعات {invoice.get_payment_type_display() if hasattr(invoice, 'get_payment_type_display') else ''} رقم {invoice.invoice_number}"
+                notes=entry_desc,
+                created_by=invoice.created_by
             )
 
-            # -----------------------------------------------------------------
-            # أ. قيد الإيرادات (بسعر البيع)
-            # -----------------------------------------------------------------
-            total_sales = Decimal(str(invoice.total_amount))
-            zero_decimal = Decimal('0.00')
+            # ج. سطور القيد: (1) قيد الإيرادات بسعر البيع
+            total_sales_amount = Decimal(str(invoice.total_amount))
             
-            # الطرف المدين (إما الخزينة أو العميل)
-            JournalItem.objects.create(entry=entry, account=debit_account, partner=partner_link, debit=total_sales, credit=zero_decimal, description=desc)
-            
-            # الطرف الدائن (إيرادات المبيعات)
-            JournalItem.objects.create(entry=entry, account=sales_revenue_acc, debit=zero_decimal, credit=total_sales, description="إيرادات مبيعات")
+            # الطرف المدين (العميل أو الخزينة)
+            JournalItem.objects.create(
+                entry=journal_entry,
+                account=debit_account,
+                partner=partner_link,
+                debit=total_sales_amount,
+                credit=0,
+                description=entry_desc
+            )
+            # الطرف الدائن (حساب المبيعات)
+            JournalItem.objects.create(
+                entry=journal_entry,
+                account=sales_revenue_acc,
+                debit=0,
+                credit=total_sales_amount,
+                description="إيرادات مبيعات الفاتورة"
+            )
 
-            # -----------------------------------------------------------------
-            # ب. قيد التكلفة (بسعر الشراء/المتوسط المرجح من كارت الصنف)
-            # -----------------------------------------------------------------
-            total_cogs = Decimal('0.00')
-            for item in invoice.items.all():
-                quantity = Decimal(str(item.quantity))
-                # نفترض أن حقل التكلفة في موديل المنتج اسمه cost_price
-                cost_price = Decimal(str(item.product.cost_price)) 
-                total_cogs += (quantity * cost_price)
-            
-            if total_cogs > zero_decimal:
-                # الطرف المدين: المصروفات (تكلفة البضاعة) زادت
-                JournalItem.objects.create(entry=entry, account=cogs_acc, debit=total_cogs, credit=zero_decimal, description="تكلفة البضاعة المباعة")
-                # الطرف الدائن: الأصول (المخزون) قل
-                JournalItem.objects.create(entry=entry, account=inventory_acc, debit=zero_decimal, credit=total_cogs, description="خفض قيمة المخزون المباع")
+            # د. سطور القيد: (2) قيد التكلفة (COGS)
+            if total_cogs > 0:
+                # الطرف المدين: مصروف تكلفة البضاعة المباعة
+                JournalItem.objects.create(
+                    entry=journal_entry,
+                    account=cogs_acc,
+                    debit=total_cogs,
+                    credit=0,
+                    description=f"تكلفة البضاعة المباعة للفاتورة {invoice.invoice_number}"
+                )
+                # الطرف الدائن: خفض قيمة المخزون (الأصل)
+                JournalItem.objects.create(
+                    entry=journal_entry,
+                    account=inventory_acc,
+                    debit=0,
+                    credit=total_cogs,
+                    description="تخفيض المخزون بسعر التكلفة"
+                )
 
-            return True, f"تم سحب البضاعة وإنشاء القيد المحاسبي المزدوج (بيع وتكلفة) بنجاح."
+            # ========================================================
+            # 5. الربط النهائي للتوثيق (The Magic Link)
+            # ========================================================
+            # نربط الإذن المخزني بالقيد المحاسبي الناتج عنه
+            stock_doc.journal_entry = journal_entry
+            stock_doc.save()
+
+            return True, "تم ترحيل الفاتورة للمخازن والحسابات بنجاح."
