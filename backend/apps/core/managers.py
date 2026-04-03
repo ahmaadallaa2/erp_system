@@ -8,6 +8,4 @@ class SoftDeleteManager(models.Manager):
         # أي كويري هتم، هنزود عليها شرط: is_deleted = False
         return super().get_queryset().filter(is_deleted=False)
 
-    def all_with_deleted(self):
-        # دالة احتياطية لو حبينا نجيب كل الداتا (للتقارير مثلاً)
-        return super().get_queryset()
+   

@@ -86,10 +86,12 @@ class Branch(SoftDeleteModel):
         # This prevents database IntegrityErrors if a deleted branch had the same code as a newly created one.
         constraints = [
             models.UniqueConstraint(
-                fields=['code'],
+                fields=['company', 'code'], 
                 condition=Q(is_deleted=False), 
-                name='unique_active_branch_code'
+                name='unique_branch_code_per_company_active'
             )
+            
+
         ]
 
     # this returns a readable format in the Django admin and foreign key dropdowns.

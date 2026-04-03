@@ -1,18 +1,37 @@
 import json
 from django.contrib import admin
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
+
 from ..models import AuditLog
+
 
 @admin.register(AuditLog)
 class AuditLogAdmin(ModelAdmin):
-    list_display = ('timestamp', 'user', 'action', 'content_type', 'object_link', 'short_changes')
+    list_display = (
+        'timestamp',
+        'user',
+        'action',
+        'content_type',
+        'object_link',
+        'short_changes',
+    )
     list_filter = ('action', 'timestamp', 'content_type')
     search_fields = ('object_id', 'user__username', 'user__email')
-    
-    readonly_fields = ('user', 'action', 'content_type', 'object_id', 'object_link', 'timestamp', 'ip_address', 'browser_info', 'formatted_changes')
-    
+
+    readonly_fields = (
+        'user',
+        'action',
+        'content_type',
+        'object_id',
+        'object_link',
+        'timestamp',
+        'ip_address',
+        'browser_info',
+        'formatted_changes',
+    )
+
     fieldsets = (
         ('معلومات الحركة', {
             'fields': ('user', 'action', 'timestamp', 'ip_address', 'browser_info')
@@ -25,31 +44,47 @@ class AuditLogAdmin(ModelAdmin):
         }),
     )
 
-    def has_add_permission(self, request): return False
-    def has_change_permission(self, request, obj=None): return False
-    def has_delete_permission(self, request, obj=None): return False
+    def has_add_permission(self, request):
+        return False
 
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="ملخص التغييرات")
     def short_changes(self, obj):
-        if obj.changes: return str(obj.changes)[:50] + "..."
+        if obj.changes:
+            text = str(obj.changes)
+            return text[:50] + "..." if len(text) > 50 else text
         return "-"
-    short_changes.short_description = "ملخص التغييرات"
 
+    @admin.display(description="التغييرات (JSON)")
     def formatted_changes(self, obj):
         if obj.changes:
             pretty_json = json.dumps(obj.changes, indent=4, ensure_ascii=False)
-            return format_html('<pre style="direction: ltr; text-align: left; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">{}</pre>', pretty_json)
+            return format_html(
+                '<pre style="direction: ltr; text-align: left; background-color: #f8f9fa; padding: 10px; border-radius: 5px; white-space: pre-wrap;">{}</pre>',
+                pretty_json
+            )
         return "لا توجد تغييرات"
-    formatted_changes.short_description = "التغييرات (JSON)"
 
+    @admin.display(description="رابط السجل")
     def object_link(self, obj):
         if obj.content_object:
             try:
-                url = reverse(f"admin:{obj.content_type.app_label}_{obj.content_type.model}_change", args=[obj.object_id])
-                return format_html('<a href="{}" style="font-weight: bold; color: #007bff;">عرض السجل &#8594;</a>', url)
-            except:
+                url = reverse(
+                    f"admin:{obj.content_type.app_label}_{obj.content_type.model}_change",
+                    args=[obj.object_id]
+                )
+                return format_html(
+                    '<a href="{}" style="font-weight: bold; color: #007bff;">عرض السجل &#8594;</a>',
+                    url
+                )
+            except NoReverseMatch:
                 return str(obj.content_object)
-        
-        # التعديل هنا: وضعنا {} ومررنا كلمة (محذوف) كـ Argument
+            except Exception:
+                return str(obj.content_object)
+
         return format_html('<span style="color: red;">{}</span>', '(محذوف)')
-        
-    object_link.short_description = "رابط السجل"
