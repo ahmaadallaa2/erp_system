@@ -16,7 +16,7 @@ urlpatterns = [
     path('', login_view, name='login'), # صفحة اللوجين هي الرئيسية
     
     # ضيف السطر ده عشان يقرأ مسارات تطبيق الـ core
-    path('core/', include('apps.core.urls')), 
+    
     
     path('users/', include('apps.users.urls')),
 ]

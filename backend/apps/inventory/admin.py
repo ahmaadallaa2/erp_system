@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from unfold.admin import ModelAdmin, TabularInline
 
 from .models import (
@@ -6,10 +7,11 @@ from .models import (
     Unit,
     Product,
     Warehouse,
-    Stock,
-    StockDocument,
-    StockMovement
+    StockBalance,
+    StockTransaction,
+    StockMovement,
 )
+
 
 # ==========================================
 # 1. الأساسيات والتصنيفات (Lookup Tables)
@@ -17,17 +19,56 @@ from .models import (
 
 @admin.register(Category)
 class CategoryAdmin(ModelAdmin):
-    list_display = ('name', 'parent', 'created_at')
-    list_filter = ('parent',)
+    list_display = ('name', 'parent', 'company', 'is_active', 'created_at')
+    list_filter = ('company', 'parent', 'is_active')
     search_fields = ('name',)
-    ordering = ('name',)
+    ordering = ('company', 'name')
+    autocomplete_fields = ('company', 'parent')
+    readonly_fields = ('created_at', 'updated_at', 'created_by', 'updated_by')
+
+    fieldsets = (
+        ('البيانات الأساسية', {
+            'fields': ('company', 'name', 'parent', 'is_active')
+        }),
+        ('تفاصيل إضافية', {
+            'fields': ('description', 'icon')
+        }),
+        ('سجلات النظام', {
+            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by_id:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(Unit)
 class UnitAdmin(ModelAdmin):
-    list_display = ('name', 'short_name', 'created_at')
+    list_display = ('name', 'short_name', 'is_active', 'created_at')
+    list_filter = ('is_active',)
     search_fields = ('name', 'short_name')
     ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at', 'created_by', 'updated_by')
+
+    fieldsets = (
+        ('بيانات الوحدة', {
+            'fields': ('name', 'short_name', 'is_active')
+        }),
+        ('سجلات النظام', {
+            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by_id:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 # ==========================================
@@ -36,16 +77,30 @@ class UnitAdmin(ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(ModelAdmin):
-    list_display = ('name', 'sku', 'category', 'sale_price', 'average_cost', 'product_type', 'is_active')
-    list_filter = ('category', 'product_type', 'is_active', 'created_at', 'company')
+    list_display = (
+        'name',
+        'sku',
+        'company',
+        'category',
+        'sale_price',
+        'average_cost',
+        'product_type',
+        'is_active',
+    )
+    list_filter = ('company', 'category', 'product_type', 'is_active', 'created_at')
     search_fields = ('name', 'sku', 'barcode', 'description')
     ordering = ('company', 'name')
-    
-    # تحسين الأداء: الدروب داون هيتحول لبحث AJAX سريع
+
     autocomplete_fields = ('company', 'category', 'unit', 'income_account', 'expense_account')
-    
-    # حقول للقراءة فقط (التكلفة تُحسب آلياً من المشتريات)
-    readonly_fields = ('sku', 'average_cost', 'created_at', 'updated_at', 'created_by', 'updated_by')
+
+    readonly_fields = (
+        'sku',
+        'average_cost',
+        'created_at',
+        'updated_at',
+        'created_by',
+        'updated_by',
+    )
 
     fieldsets = (
         ('بيانات أساسية', {
@@ -71,8 +126,7 @@ class ProductAdmin(ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        """تسجيل المستخدم الذي قام بالإضافة أو التعديل آلياً"""
-        if not change:
+        if not change and not obj.created_by_id:
             obj.created_by = request.user
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
@@ -80,17 +134,17 @@ class ProductAdmin(ModelAdmin):
 
 @admin.register(Warehouse)
 class WarehouseAdmin(ModelAdmin):
-    list_display = ('code', 'name', 'warehouse_type', 'branch', 'keeper', 'is_active')
-    list_filter = ('warehouse_type', 'branch', 'is_active')
-    search_fields = ('code', 'name', 'branch__name', 'keeper__first_name', 'keeper__last_name')
-    ordering = ('code', 'name')
-    
-    autocomplete_fields = ('branch', 'keeper')
+    list_display = ('code', 'name', 'company', 'warehouse_type', 'branch', 'keeper', 'is_active')
+    list_filter = ('company', 'warehouse_type', 'branch', 'is_active')
+    search_fields = ('code', 'name', 'branch__name', 'keeper__full_name', 'keeper__email')
+    ordering = ('company', 'code', 'name')
+
+    autocomplete_fields = ('company', 'branch', 'keeper')
     readonly_fields = ('code', 'created_at', 'updated_at', 'created_by', 'updated_by')
 
     fieldsets = (
         ('البيانات الأساسية', {
-            'fields': ('name', 'code', 'warehouse_type', 'is_active')
+            'fields': ('company', 'name', 'code', 'warehouse_type', 'is_active')
         }),
         ('الإدارة والموقع', {
             'fields': ('branch', 'address', 'keeper')
@@ -102,76 +156,142 @@ class WarehouseAdmin(ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        if not change:
+        if not change and not obj.created_by_id:
             obj.created_by = request.user
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
 
 
 # ==========================================
-# 3. الأرصدة (رصيد المخزن اللحظي)
+# 3. الأرصدة (الرصيد اللحظي)
 # ==========================================
 
-@admin.register(Stock)
-class StockAdmin(ModelAdmin):
-    list_display = ('product', 'warehouse', 'quantity', 'location')
-    list_filter = ('warehouse', 'product__category')
-    search_fields = ('product__name', 'product__sku')
+@admin.register(StockBalance)
+class StockBalanceAdmin(ModelAdmin):
+    list_display = (
+        'product',
+        'warehouse',
+        'quantity',
+        'reserved_quantity',
+        'available_quantity_display',
+        'location',
+    )
+    list_filter = ('company', 'warehouse', 'product__category')
+    search_fields = ('product__name', 'product__sku', 'warehouse__name')
     ordering = ('warehouse', 'product')
-    
-    autocomplete_fields = ('product', 'warehouse')
-    readonly_fields = ('quantity', 'created_at', 'updated_at')
+
+    autocomplete_fields = ('company', 'product', 'warehouse')
+
+    readonly_fields = (
+        'quantity',
+        'reserved_quantity',
+        'available_quantity_display',
+        'created_at',
+        'updated_at',
+        'created_by',
+        'updated_by',
+    )
 
     fieldsets = (
         ('بيانات التخزين', {
-            'fields': ('product', 'warehouse', 'location')
+            'fields': ('company', 'product', 'warehouse', 'location', 'reorder_point')
         }),
         ('الأرصدة', {
-            'fields': ('quantity',)
+            'fields': ('quantity', 'reserved_quantity', 'available_quantity_display')
+        }),
+        ('سجلات النظام', {
+            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by'),
+            'classes': ('collapse',),
         }),
     )
 
+    @admin.display(description="الكمية المتاحة")
+    def available_quantity_display(self, obj):
+        return obj.available_quantity
+
 
 # ==========================================
-# 4. أذونات المخازن وحركاتها (Master-Detail)
+# 4. الحركات المخزنية (Master-Detail)
 # ==========================================
 
 class StockMovementInline(TabularInline):
-    """سطور الإذن (حركات الأصناف)"""
+    """
+    سطور الحركة المخزنية داخل المستند الرئيسي.
+    """
     model = StockMovement
-    extra = 1  # سطر واحد فارغ افتراضياً
+    extra = 1
     autocomplete_fields = ('product',)
-    
+    fields = ('product', 'quantity', 'unit_cost', 'note')
+
     def has_change_permission(self, request, obj=None):
-        """منع تعديل السطور بعد حفظ الإذن"""
-        if obj is not None:
+        if obj and obj.status == 'posted':
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        """منع حذف السطور بعد حفظ الإذن"""
-        if obj is not None:
+        if obj and obj.status == 'posted':
             return False
         return super().has_delete_permission(request, obj)
 
+    def has_add_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_add_permission(request, obj)
 
-@admin.register(StockDocument)
-class StockDocumentAdmin(ModelAdmin):
-    """إذن المخزن الرئيسي (الأب)"""
-    list_display = ('id', 'document_type', 'warehouse', 'date', 'reference', 'created_by')
-    list_filter = ('document_type', 'warehouse', 'date')
-    search_fields = ('reference', 'notes', 'warehouse__name')
-    ordering = ('-created_at',)
-    
-    autocomplete_fields = ('warehouse', 'journal_entry')
-    readonly_fields = ('created_at', 'created_by', 'updated_at', 'updated_by')
 
-    # دمج السطور (الابن) داخل صفحة الإذن (الأب)
+@admin.register(StockTransaction)
+class StockTransactionAdmin(ModelAdmin):
+    list_display = (
+        'code',
+        'transaction_type',
+        'company',
+        'source_warehouse',
+        'destination_warehouse',
+        'date',
+        'status',
+        'created_by',
+    )
+    list_filter = (
+        'company',
+        'transaction_type',
+        'status',
+        'source_warehouse',
+        'date',
+    )
+    search_fields = (
+        'code',
+        'reference',
+        'notes',
+        'source_warehouse__name',
+        'destination_warehouse__name',
+    )
+    ordering = ('-date', '-created_at')
+
+    autocomplete_fields = ('company', 'source_warehouse', 'destination_warehouse', 'journal_entry')
+
+    readonly_fields = (
+        'code',
+        'created_at',
+        'created_by',
+        'updated_at',
+        'updated_by',
+    )
+
     inlines = [StockMovementInline]
 
+    actions = ['post_transactions']
+
     fieldsets = (
-        ('بيانات الإذن المخزني', {
-            'fields': ('document_type', 'warehouse', 'date')
+        ('بيانات الحركة المخزنية', {
+            'fields': (
+                'company',
+                'code',
+                'transaction_type',
+                'source_warehouse',
+                'destination_warehouse',
+                'date',
+                'status',
+            )
         }),
         ('التوثيق والارتباطات', {
             'fields': ('reference', 'journal_entry', 'notes')
@@ -182,15 +302,38 @@ class StockDocumentAdmin(ModelAdmin):
         }),
     )
 
+    @admin.action(description="ترحيل الحركات المختارة")
+    def post_transactions(self, request, queryset):
+        from apps.inventory.services.stock_service import StockService
+
+        posted_count = 0
+        for obj in queryset:
+            if obj.status == 'draft':
+                try:
+                    StockService.post_transaction(obj)
+                    posted_count += 1
+                except Exception as exc:
+                    self.message_user(
+                        request,
+                        f"فشل ترحيل الحركة {obj.code or obj.pk}: {exc}",
+                        level='error'
+                    )
+
+        if posted_count:
+            self.message_user(request, f"تم ترحيل {posted_count} حركة بنجاح.")
+
     def save_model(self, request, obj, form, change):
-        """تسجيل الموظف اللي عمل الإذن أوتوماتيك"""
-        if not change:
+        if not change and not obj.created_by_id:
             obj.created_by = request.user
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
 
     def has_change_permission(self, request, obj=None):
-        """منع تعديل الإذن بالكامل بعد حفظه للحفاظ على دقة الأرصدة"""
-        if obj is not None:
+        if obj and obj.status == 'posted':
             return False
         return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_delete_permission(request, obj)

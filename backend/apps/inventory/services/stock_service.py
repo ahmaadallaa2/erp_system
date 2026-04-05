@@ -1,61 +1,172 @@
+from decimal import Decimal
+
 from django.db import transaction
-from django.db.models import Sum, F
-from apps.inventory.models import Stock, StockMovement, Product
+from django.db.models import Sum
+
+from apps.inventory.models import StockBalance, StockMovement
+
 
 class StockService:
-    
     @staticmethod
-    def register_movement(document, product, quantity, unit_price=None, notes=None):
+    @transaction.atomic
+    def post_transaction(transaction_obj):
         """
-        خدمة مطورة لربط حركات المخزون بالإذن الرئيسي وتحديث الأرصدة والتكلفة.
+        ترحيل الحركة المخزنية:
+        - تحديث أرصدة المخزون
+        - تحديث متوسط التكلفة عند الوارد
+        - منع الصرف لو الكمية غير كافية
+        - تحويل الحالة إلى posted
         """
-        warehouse = document.warehouse
-        # تحويل نوع الإذن (IN/OUT) من الـ Document
-        movement_type = document.document_type 
 
-        with transaction.atomic():
-            # 1. إنشاء سطر الحركة وربطه بالإذن (Document)
-            movement = StockMovement.objects.create(
-                document=document, # الربط بالأب
-                product=product,
-                quantity=quantity,
-                unit_price=unit_price or 0, # تخزين السعر في الحركة للتوثيق
-                notes=notes
-            )
+        if transaction_obj.status != 'draft':
+            raise ValueError("Only draft transactions can be posted.")
 
-            # 2. تحديث الرصيد (استخدام F() لتجنب الـ Race Conditions)
-            stock_record, _ = Stock.objects.get_or_create(
-                product=product, 
-                warehouse=warehouse,
-                defaults={'quantity': 0}
-            )
-            
-            if movement_type == 'IN':
-                stock_record.quantity = F('quantity') + quantity
-            elif movement_type == 'OUT':
-                stock_record.quantity = F('quantity') - quantity
-            
-            stock_record.save()
-            # ملحوظة: نحتاج عمل refresh_from_db لو هنستخدم الـ quantity في نفس الفانكشن بعد الـ F()
+        items = list(transaction_obj.items.select_related('product'))
+        if not items:
+            raise ValueError("Cannot post an empty stock transaction.")
 
-            # 3. تحديث متوسط التكلفة (WAC) - فقط في حالة الوارد
-            if movement_type == 'IN' and unit_price is not None:
-                stock_record.refresh_from_db()
-                
-                # إجمالي الكمية الحالية في كل المخازن
-                total_qty_data = Stock.objects.filter(product=product).aggregate(total=Sum('quantity'))
-                total_current_qty = total_qty_data['total'] or 0
-                
-                # الكمية قبل هذه الحركة
-                old_qty = total_current_qty - quantity
-                
-                if total_current_qty > 0:
-                    # معادلة المتوسط المرجح: (الكمية القديمة * تكلفتها + الكمية الجديدة * تكلفتها) / إجمالي الكمية
-                    old_total_value = old_qty * (product.average_cost or 0)
-                    new_total_value = quantity * unit_price
-                    new_avg_cost = (old_total_value + new_total_value) / total_current_qty
-                    
-                    product.average_cost = round(new_avg_cost, 4) # 4 أرقام عشرية لدقة الحسابات المالية
-                    product.save(update_fields=['average_cost'])
+        tx_type = transaction_obj.transaction_type
+        company = transaction_obj.company
+        source_warehouse = transaction_obj.source_warehouse
+        destination_warehouse = transaction_obj.destination_warehouse
 
-            return movement
+        for item in items:
+            product = item.product
+            quantity = item.quantity
+            unit_cost = item.unit_cost or Decimal("0.00")
+
+            # =========================
+            # IN
+            # =========================
+            if tx_type == 'IN':
+                balance, _ = StockBalance.objects.select_for_update().get_or_create(
+                    company=company,
+                    product=product,
+                    warehouse=source_warehouse,
+                    defaults={
+                        'quantity': Decimal("0.00"),
+                        'reserved_quantity': Decimal("0.00"),
+                    }
+                )
+
+                balance.quantity += quantity
+                balance.save(update_fields=['quantity', 'updated_at'])
+
+                # تحديث متوسط التكلفة
+                if unit_cost > 0:
+                    StockService._update_average_cost_on_in(product, quantity, unit_cost)
+
+            # =========================
+            # OUT
+            # =========================
+            elif tx_type == 'OUT':
+                balance, _ = StockBalance.objects.select_for_update().get_or_create(
+                    company=company,
+                    product=product,
+                    warehouse=source_warehouse,
+                    defaults={
+                        'quantity': Decimal("0.00"),
+                        'reserved_quantity': Decimal("0.00"),
+                    }
+                )
+
+                available_qty = balance.quantity - balance.reserved_quantity
+                if available_qty < quantity:
+                    raise ValueError(
+                        f"Insufficient stock for product '{product}'. "
+                        f"Available: {available_qty}, Required: {quantity}"
+                    )
+
+                balance.quantity -= quantity
+                balance.save(update_fields=['quantity', 'updated_at'])
+
+            # =========================
+            # TRANSFER
+            # =========================
+            elif tx_type == 'TRANSFER':
+                if not destination_warehouse:
+                    raise ValueError("Destination warehouse is required for transfer transactions.")
+
+                source_balance, _ = StockBalance.objects.select_for_update().get_or_create(
+                    company=company,
+                    product=product,
+                    warehouse=source_warehouse,
+                    defaults={
+                        'quantity': Decimal("0.00"),
+                        'reserved_quantity': Decimal("0.00"),
+                    }
+                )
+
+                available_qty = source_balance.quantity - source_balance.reserved_quantity
+                if available_qty < quantity:
+                    raise ValueError(
+                        f"Insufficient stock for product '{product}' in source warehouse. "
+                        f"Available: {available_qty}, Required: {quantity}"
+                    )
+
+                destination_balance, _ = StockBalance.objects.select_for_update().get_or_create(
+                    company=company,
+                    product=product,
+                    warehouse=destination_warehouse,
+                    defaults={
+                        'quantity': Decimal("0.00"),
+                        'reserved_quantity': Decimal("0.00"),
+                    }
+                )
+
+                source_balance.quantity -= quantity
+                destination_balance.quantity += quantity
+
+                source_balance.save(update_fields=['quantity', 'updated_at'])
+                destination_balance.save(update_fields=['quantity', 'updated_at'])
+
+            else:
+                raise ValueError(f"Unsupported transaction type: {tx_type}")
+
+        transaction_obj.status = 'posted'
+        transaction_obj.save(update_fields=['status', 'updated_at'])
+
+        return transaction_obj
+
+    @staticmethod
+    def create_movement(transaction_obj, product, quantity, unit_cost=None, note=None):
+        """
+        إنشاء سطر حركة مخزنية أثناء كون المستند Draft.
+        """
+        if transaction_obj.status != 'draft':
+            raise ValueError("Cannot add items to a non-draft transaction.")
+
+        return StockMovement.objects.create(
+            transaction=transaction_obj,
+            product=product,
+            quantity=quantity,
+            unit_cost=unit_cost or Decimal("0.00"),
+            note=note
+        )
+
+    @staticmethod
+    def _update_average_cost_on_in(product, incoming_qty, incoming_unit_cost):
+        """
+        تحديث متوسط التكلفة المرجح عند الحركات الواردة فقط.
+        """
+        incoming_qty = Decimal(incoming_qty)
+        incoming_unit_cost = Decimal(incoming_unit_cost)
+
+        total_qty = (
+            StockBalance.objects.filter(product=product, company=product.company)
+            .aggregate(total=Sum('quantity'))
+            .get('total')
+            or Decimal("0.00")
+        )
+
+        old_total_qty = total_qty - incoming_qty
+        old_avg_cost = product.average_cost or Decimal("0.00")
+
+        if total_qty <= 0:
+            product.average_cost = incoming_unit_cost
+        else:
+            old_total_value = old_total_qty * old_avg_cost
+            new_total_value = incoming_qty * incoming_unit_cost
+            product.average_cost = (old_total_value + new_total_value) / total_qty
+
+        product.save(update_fields=['average_cost', 'updated_at'])

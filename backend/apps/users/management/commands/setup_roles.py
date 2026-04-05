@@ -3,7 +3,7 @@ from django.contrib.auth.models import Group, Permission
 from django.db.models import Q
 
 # استدعاء أسماء المجموعات من ملف الصلاحيات اللي لسه عاملينه
-from apps.users.permissions import (
+from backend.apps.users.roles import (
     GROUP_SUPER_ADMIN, 
     GROUP_MANAGER, 
     GROUP_ACCOUNTANT, 
