@@ -1,55 +1,135 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from unfold.admin import ModelAdmin
+
 from apps.accounting.models.payment import Payment
-from apps.accounting.services.accounting_service import AccountingService
-from django.contrib import messages
+from apps.accounting.services.payment_service import PaymentService
+
 
 @admin.register(Payment)
 class PaymentAdmin(ModelAdmin):
-    list_display = ('name', 'partner', 'payment_type', 'payment_method', 'amount', 'date', 'has_journal_entry')
-    list_filter = ('payment_type', 'payment_method', 'date')
-    search_fields = ('name', 'partner__name', 'reference')
-    autocomplete_fields = ('partner',)
-    
-    # الحقول دي السيستم بيكريتها لوحده فبنقفلها
-    readonly_fields = ('name', 'journal_entry', 'created_at', 'updated_at', 'created_by', 'updated_by')
+    list_display = (
+        'voucher_number',
+        'company',
+        'branch',
+        'partner',
+        'payment_type',
+        'payment_method',
+        'account',
+        'amount',
+        'date',
+        'status',
+        'has_journal_entry',
+    )
+
+    list_filter = (
+        'company',
+        'branch',
+        'payment_type',
+        'payment_method',
+        'status',
+        'date',
+    )
+
+    search_fields = (
+        'voucher_number',
+        'partner__name',
+        'reference',
+        'notes',
+    )
+
+    ordering = ('-date', '-id')
+
+    autocomplete_fields = (
+        'company',
+        'branch',
+        'partner',
+        'account',
+    )
+
+    readonly_fields = (
+        'voucher_number',
+        'journal_entry',
+        'created_at',
+        'updated_at',
+        'created_by',
+        'updated_by',
+    )
+
+    actions = ('action_post_payments',)
 
     fieldsets = (
         ('بيانات السند الأساسية', {
             'fields': (
+                'company',
+                'branch',
+                ('voucher_number', 'date'),
                 ('payment_type', 'payment_method'),
-                ('partner', 'amount'),
-                'date'
+                ('partner', 'account'),
+                ('amount', 'status'),
             )
         }),
         ('معلومات إضافية', {
             'fields': (
-                'reference', 
+                'reference',
                 'notes',
-                'journal_entry' # هيظهر هنا القيد بعد ما يتكريت
+                'journal_entry',
+            )
+        }),
+        ('سجلات النظام', {
+            'classes': ('collapse',),
+            'fields': (
+                ('created_at', 'updated_at'),
+                ('created_by', 'updated_by'),
             )
         }),
     )
 
+    @admin.display(description="مُرحل حسابياً؟", boolean=True)
     def has_journal_entry(self, obj):
-        return bool(obj.journal_entry)
-    has_journal_entry.short_description = "مُرحل حسابياً؟"
-    has_journal_entry.boolean = True
+        return bool(obj.journal_entry_id)
 
-    # التريكة السحرية: لما المحاسب يدوس حفظ، ننده على السيرفيس تكريت القيد!
-    def save_model(self, request, obj, form, change):
-        # 1. نحفظ السند الأول
-        super().save_model(request, obj, form, change)
-        
-        # 2. شلنا شرط is_new.. لو السند ملوش قيد، حاول ترحله فوراً
-        if not obj.journal_entry:
+    @admin.action(description='ترحيل السندات المحددة')
+    def action_post_payments(self, request, queryset):
+        success_count = 0
+
+        for payment in queryset:
+            if payment.status != 'draft':
+                self.message_user(
+                    request,
+                    f"تم تخطي السند {payment.voucher_number}: ليس في حالة draft.",
+                    level=messages.WARNING
+                )
+                continue
+
             try:
-                success, msg = AccountingService.create_payment_entry(obj)
-                
-                if success:
-                    messages.success(request, f"تم الترحيل المحاسبي بنجاح: {msg}")
-                else:
-                    messages.error(request, f"⚠️ السند محفوظ بس مترحلش حسابياً: {msg}")
-                    
+                PaymentService.post_payment(payment)
+                success_count += 1
             except Exception as e:
-                messages.error(request, f"❌ خطأ برمجي في الحسابات: {str(e)}")
+                self.message_user(
+                    request,
+                    f"فشل ترحيل السند {payment.voucher_number}: {str(e)}",
+                    level=messages.ERROR
+                )
+
+        if success_count:
+            self.message_user(
+                request,
+                f"تم ترحيل {success_count} سند بنجاح.",
+                level=messages.SUCCESS
+            )
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by_id:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_delete_permission(request, obj)

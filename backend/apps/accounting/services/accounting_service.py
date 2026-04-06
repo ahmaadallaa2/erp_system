@@ -1,144 +1,275 @@
-from django.db import transaction
-from apps.accounting.models import Journal, JournalEntry, JournalItem, Account
+from decimal import Decimal
+from django.db.models import Sum
 
 from django.db import transaction
+from django.core.exceptions import ValidationError
+
 from apps.accounting.models import Journal, JournalEntry, JournalItem, Account
+
 
 class AccountingService:
+    @staticmethod
+    def _get_or_create_journal(company, code, name, journal_type):
+        journal, _ = Journal.objects.get_or_create(
+            company=company,
+            code=code,
+            defaults={
+                'name': name,
+                'type': journal_type,
+            }
+        )
+        return journal
 
     @staticmethod
-    def create_purchase_invoice_entry(invoice, inventory_account_code='1004', payable_account_code='2001', bank_account_code='1002'):
+    def _get_account_by_code(company, code):
+        return Account.objects.get(
+            company=company,
+            code=code,
+            is_deleted=False
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def create_purchase_invoice_entry(
+        invoice,
+        inventory_account_code='1004',
+        payable_account_code='2001',
+        expense_payment_account_code='1002'
+    ):
         """
-        خدمة لإنشاء قيد يومية أوتوماتيكي مركب عند استلام فاتورة مشتريات.
-        يتم إثبات قيمة البضاعة للمورد، وخصم مصاريف الشحن والجمارك من البنك، وتحميل الإجمالي على المخزون.
+        إنشاء قيد محاسبي لفاتورة مشتريات:
+        - مدين: المخزون
+        - دائن: المورد
+        - دائن: البنك/الخزينة للمصاريف الإضافية المدفوعة مباشرة
         """
-        with transaction.atomic():
-            # 1. التأكد من وجود دفتر المشتريات (أو إنشاؤه تلقائياً)
-            journal, _ = Journal.objects.get_or_create(
-                code='PUR',
-                defaults={'name': 'دفتر المشتريات', 'type': 'purchase'}
-            )
 
-            # 2. فحص التكرار (Idempotency): منع إنشاء قيدين لنفس الفاتورة
-            if JournalEntry.objects.filter(reference=invoice.invoice_number, journal=journal).exists():
-                return False, "تم إنشاء قيد لهذه الفاتورة مسبقاً."
+        if getattr(invoice, 'journal_entry_id', None):
+            raise ValidationError("يوجد قيد يومية مرتبط بهذه الفاتورة بالفعل.")
 
-            # ==========================================
-            # 3. حساب القيم (البضاعة الأساسية vs المصاريف)
-            # ==========================================
-            total_goods_value = invoice.total_amount # قيمة البضاعة الأساسية للمورد
-            
-            # جلب المصاريف الإضافية (بنتأكد إنها موجودة بـ getattr عشان ميتعملش إيرور)
-            shipping = getattr(invoice, 'shipping_cost', 0)
-            clearance = getattr(invoice, 'clearance_cost', 0)
-            commission_pct = getattr(invoice, 'commission_percentage', 0)
-            
-            # حساب التكلفة الكلية للمصاريف
-            commission_value = float(total_goods_value) * (float(commission_pct) / 100)
-            total_expenses = float(shipping) + float(clearance) + commission_value
-            
-            # المخزون هيشيل الليلة كلها (البضاعة + المصاريف)
-            total_inventory_value = float(total_goods_value) + total_expenses
+        journal = AccountingService._get_or_create_journal(
+            company=invoice.company,
+            code='PUR',
+            name='دفتر المشتريات',
+            journal_type='purchase'
+        )
 
-            # 4. جلب الحسابات المحاسبية
-            try:
-                inventory_acc = Account.objects.get(code=inventory_account_code)
-                payable_acc = Account.objects.get(code=payable_account_code)
-                bank_acc = Account.objects.get(code=bank_account_code) # حساب البنك للمصاريف
-            except Account.DoesNotExist:
-                return False, f"فشل: تأكد من وجود حساب المخزون ({inventory_account_code}) والموردين ({payable_account_code}) والبنك ({bank_account_code}) في شجرة الحسابات."
+        if JournalEntry.objects.filter(
+            company=invoice.company,
+            reference=invoice.invoice_number,
+            journal=journal,
+            is_deleted=False
+        ).exists():
+            raise ValidationError("تم إنشاء قيد لهذه الفاتورة مسبقًا.")
 
-            # 5. إنشاء رأس القيد (مُرحل مباشرة لتسميع الرصيد)
-            entry = JournalEntry.objects.create(
-                journal=journal,
-                date=invoice.invoice_date,
-                reference=invoice.invoice_number,
-                status='posted',
-                notes=f"إثبات مديونية وتكلفة لفاتورة المشتريات رقم {invoice.invoice_number} - المورد: {invoice.supplier.name}"
-            )
+        total_goods_value = (invoice.items.aggregate(total=Sum('line_total')).get('total')or Decimal('0.00'))
+        shipping = Decimal(getattr(invoice, 'shipping_cost', Decimal('0.00')) or Decimal('0.00'))
+        clearance = Decimal(getattr(invoice, 'clearance_cost', Decimal('0.00')) or Decimal('0.00'))
+        commission_pct = Decimal(getattr(invoice, 'commission_percentage', Decimal('0.00')) or Decimal('0.00'))
 
-            # ==========================================
-            # 6. إنشاء سطور القيد (القيد المركب)
-            # ==========================================
-            
-            # الطرف المدين (Debit): المخزون زاد (بإجمالي القيمة شاملة المصاريف)
+        commission_value = (total_goods_value * commission_pct) / Decimal('100.00')
+        total_expenses = shipping + clearance + commission_value
+        total_inventory_value = total_goods_value + total_expenses
+
+        inventory_acc = AccountingService._get_account_by_code(invoice.company, inventory_account_code)
+        payable_acc = AccountingService._get_account_by_code(invoice.company, payable_account_code)
+        expense_payment_acc = AccountingService._get_account_by_code(invoice.company, expense_payment_account_code)
+
+        entry = JournalEntry.objects.create(
+            company=invoice.company,
+            journal=journal,
+            date=invoice.invoice_date,
+            reference=invoice.invoice_number,
+            notes=f"إثبات فاتورة مشتريات رقم {invoice.invoice_number} - المورد: {invoice.supplier.name}",
+            status='draft',
+        )
+
+        JournalItem.objects.create(
+            entry=entry,
+            account=inventory_acc,
+            description=f"إثبات مخزون من فاتورة مشتريات {invoice.invoice_number}",
+            debit=total_inventory_value,
+            credit=Decimal('0.00')
+        )
+
+        JournalItem.objects.create(
+            entry=entry,
+            account=payable_acc,
+            partner=invoice.supplier,
+            description=f"استحقاق على المورد - فاتورة {invoice.invoice_number}",
+            debit=Decimal('0.00'),
+            credit=total_goods_value
+        )
+
+        if total_expenses > Decimal('0.00'):
             JournalItem.objects.create(
                 entry=entry,
-                account=inventory_acc,
-                description=f"استلام بضاعة (شاملة التكلفة الإضافية) - فاتورة {invoice.invoice_number}",
-                debit=total_inventory_value,
-                credit=0.00
+                account=expense_payment_acc,
+                description=f"مصاريف إضافية على فاتورة {invoice.invoice_number}",
+                debit=Decimal('0.00'),
+                credit=total_expenses
             )
 
-            # الطرف الدائن 1 (Credit): المديونية للمورد زادت (بقيمة البضاعة فقط)
-            JournalItem.objects.create(
-                entry=entry,
-                account=payable_acc,
-                partner=invoice.supplier,  # ربطنا المورد هنا عشان كشف حسابه!
-                description=f"استحقاق بضاعة فاتورة {invoice.invoice_number}",
-                debit=0.00,
-                credit=total_goods_value
-            )
+        entry.post()
 
-            # الطرف الدائن 2 (Credit): خروج فلوس من البنك (بقيمة المصاريف الإضافية)
-            if total_expenses > 0:
-                JournalItem.objects.create(
-                    entry=entry,
-                    account=bank_acc,
-                    description=f"تحويل بنكي: مصاريف شحن وتخليص وعمولة - فاتورة {invoice.invoice_number}",
-                    debit=0.00,
-                    credit=total_expenses
+        return entry
+
+    @staticmethod
+    @transaction.atomic
+    def create_sales_invoice_entry(
+        invoice,
+        receivable_account_code='1003',
+        revenue_account_code='4001'
+    ):
+        """
+        إنشاء قيد محاسبي لفاتورة مبيعات آجل:
+        - مدين: العملاء
+        - دائن: الإيرادات
+        """
+
+        if getattr(invoice, 'journal_entry_id', None):
+            raise ValidationError("يوجد قيد يومية مرتبط بهذه الفاتورة بالفعل.")
+
+        journal = AccountingService._get_or_create_journal(
+            company=invoice.company,
+            code='SAL',
+            name='دفتر المبيعات',
+            journal_type='sale'
+        )
+
+        if JournalEntry.objects.filter(
+            company=invoice.company,
+            reference=invoice.invoice_number,
+            journal=journal,
+            is_deleted=False
+        ).exists():
+            raise ValidationError("تم إنشاء قيد لهذه الفاتورة مسبقًا.")
+
+        receivable_acc = AccountingService._get_account_by_code(invoice.company, receivable_account_code)
+        revenue_acc = AccountingService._get_account_by_code(invoice.company, revenue_account_code)
+
+        total_sales_amount = Decimal(invoice.total_amount or Decimal('0.00'))
+        if total_sales_amount <= Decimal('0.00'):
+            raise ValidationError("لا يمكن إنشاء قيد لفاتورة مبيعات بإجمالي صفر.")
+
+        entry = JournalEntry.objects.create(
+            company=invoice.company,
+            journal=journal,
+            date=invoice.date,
+            reference=invoice.invoice_number,
+            notes=f"إثبات فاتورة مبيعات رقم {invoice.invoice_number} - العميل: {invoice.customer.name}",
+            status='draft',
+        )
+
+        JournalItem.objects.create(
+            entry=entry,
+            account=receivable_acc,
+            partner=invoice.customer,
+            description=f"مستحقات عميل - فاتورة {invoice.invoice_number}",
+            debit=total_sales_amount,
+            credit=Decimal('0.00')
+        )
+
+        JournalItem.objects.create(
+            entry=entry,
+            account=revenue_acc,
+            description=f"إيراد مبيعات - فاتورة {invoice.invoice_number}",
+            debit=Decimal('0.00'),
+            credit=total_sales_amount
+        )
+
+        entry.post()
+
+        return entry
+
+    @staticmethod
+    @transaction.atomic
+    def create_payment_journal_entry(
+        payment,
+        receivable_account_code='1003',
+        payable_account_code='2001'
+    ):
+        """
+        إنشاء القيد المحاسبي فقط للسند المالي:
+        inbound  = قبض من عميل
+        outbound = صرف لمورد
+        """
+
+        if payment.journal_entry_id:
+            raise ValidationError("يوجد قيد يومية مرتبط بهذا السند بالفعل.")
+
+        journal_type = 'cash' if payment.payment_method == 'cash' else 'bank'
+        journal_code = 'CSH' if payment.payment_method == 'cash' else 'BNK'
+        journal_name = 'دفتر الخزينة' if payment.payment_method == 'cash' else 'دفتر البنك'
+
+        journal = AccountingService._get_or_create_journal(
+            company=payment.company,
+            code=journal_code,
+            name=journal_name,
+            journal_type=journal_type
+        )
+
+        cash_or_bank_acc = payment.account
+
+        if cash_or_bank_acc.company_id != payment.company_id:
+            raise ValidationError("حساب السند لا يتبع نفس الشركة.")
+
+        if not cash_or_bank_acc.is_postable:
+            raise ValidationError("يجب أن يكون حساب الخزينة/البنك قابلاً للترحيل.")
+
+        if cash_or_bank_acc.account_type != 'asset':
+            raise ValidationError("حساب السند يجب أن يكون من نوع أصل.")
+
+        partner_acc_code = payable_account_code if payment.payment_type == 'outbound' else receivable_account_code
+        partner_acc = AccountingService._get_account_by_code(payment.company, partner_acc_code)
+
+        if payment.payment_type == 'outbound':
+            current_cash_balance = cash_or_bank_acc.current_balance
+            if Decimal(payment.amount) > current_cash_balance:
+                raise ValidationError(
+                    f"رصيد الحساب المالي ({current_cash_balance}) لا يكفي لصرف المبلغ المطلوب ({payment.amount})."
                 )
 
-            return True, "تم إنشاء القيد المحاسبي المركب بنجاح."
-        
-    @staticmethod
-    def create_payment_entry(payment, cash_account_code='1002', payable_account_code='2001', receivable_account_code='1003'):
-        """
-        خدمة لإنشاء قيد يومية أوتوماتيكي عند عمل سند صرف أو قبض.
-        """
-        with transaction.atomic():
-            # 1. تحديد دفتر النقدية
-            journal, _ = Journal.objects.get_or_create(
-                code='CSH',
-                defaults={'name': 'دفتر الخزينة / النقدية', 'type': 'cash'}
+        entry = JournalEntry.objects.create(
+            company=payment.company,
+            journal=journal,
+            date=payment.date,
+            reference=payment.voucher_number,
+            notes=payment.notes or f"سند {payment.get_payment_type_display()} - {payment.partner.name}",
+            status='draft',
+        )
+
+        if payment.payment_type == 'outbound':
+            JournalItem.objects.create(
+                entry=entry,
+                account=partner_acc,
+                partner=payment.partner,
+                description="سداد للمورد",
+                debit=Decimal(payment.amount),
+                credit=Decimal('0.00')
+            )
+            JournalItem.objects.create(
+                entry=entry,
+                account=cash_or_bank_acc,
+                description="صرف من الخزينة / البنك",
+                debit=Decimal('0.00'),
+                credit=Decimal(payment.amount)
+            )
+        else:
+            JournalItem.objects.create(
+                entry=entry,
+                account=cash_or_bank_acc,
+                description="تحصيل إلى الخزينة / البنك",
+                debit=Decimal(payment.amount),
+                credit=Decimal('0.00')
+            )
+            JournalItem.objects.create(
+                entry=entry,
+                account=partner_acc,
+                partner=payment.partner,
+                description="تحصيل من العميل",
+                debit=Decimal('0.00'),
+                credit=Decimal(payment.amount)
             )
 
-            # 2. جلب الحسابات
-            try:
-                cash_acc = Account.objects.get(code=cash_account_code)
-                partner_acc = Account.objects.get(code=payable_account_code if payment.payment_type == 'outbound' else receivable_account_code)
-            except Account.DoesNotExist:
-                return False, f"فشل: تأكد من وجود حساب الخزينة ({cash_account_code}) وحساب الشريك في شجرة الحسابات."
-
-            # -----------------------------------------------------
-            # 🔒 قفل الأمان الصارم: منع السحب على المكشوف من الخزينة
-            # -----------------------------------------------------
-            if payment.payment_type == 'outbound':
-                current_cash = cash_acc.current_balance
-                if payment.amount > current_cash:
-                    return False, f"مرفوض أمنياً! رصيد الخزينة الفعلي ({current_cash}) لا يكفي لصرف المبلغ المطلوب ({payment.amount}). يجب إثبات توريد نقدية للخزنة أولاً."
-            # -----------------------------------------------------
-
-            # 3. إنشاء رأس القيد
-            entry = JournalEntry.objects.create(
-                journal=journal,
-                date=payment.date,
-                reference=payment.name,
-                status='posted',
-                notes=payment.notes or f"سداد من/إلى {payment.partner.name}"
-            )
-
-            # 4. توجيه السطور
-            if payment.payment_type == 'outbound':
-                JournalItem.objects.create(entry=entry, account=partner_acc, partner=payment.partner, description=f"سداد دفعة للمورد", debit=payment.amount, credit=0.00)
-                JournalItem.objects.create(entry=entry, account=cash_acc, description=f"صرف نقدية", debit=0.00, credit=payment.amount)
-            else:
-                JournalItem.objects.create(entry=entry, account=cash_acc, description=f"استلام نقدية", debit=payment.amount, credit=0.00)
-                JournalItem.objects.create(entry=entry, account=partner_acc, partner=payment.partner, description=f"تحصيل دفعة من العميل", debit=0.00, credit=payment.amount)
-
-            # 5. ربط القيد بالسند
-            payment.journal_entry = entry
-            payment.save(update_fields=['journal_entry'])
-
-            return True, "تم السداد وإنشاء القيد بنجاح."
+        entry.post()
+        return entry
