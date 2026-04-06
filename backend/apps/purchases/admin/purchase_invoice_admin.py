@@ -1,24 +1,38 @@
-# apps/purchases/admin.py
-
-from django.contrib import admin, messages
+from django.contrib import admin
+from django.contrib import messages
 from unfold.admin import ModelAdmin, TabularInline
 
-# استدعاء موديلات الفاتورة
 from ..models.purchase_invoice import PurchaseInvoice
 from ..models.purchase_invoice_item import PurchaseInvoiceItem
+from ..services.purchase_service import PurchaseService
 
-# استدعاء السيرفيس اللي هتشغل خوارزمية التكلفة
-from ..services.inventory_services import InventorySyncService
 
 # ==========================================
 # 1. Inline Configuration for Purchase Invoice Items
 # ==========================================
 class PurchaseInvoiceItemInline(TabularInline):
     model = PurchaseInvoiceItem
-    extra = 1 
-    
-    fields = ('product', 'quantity', 'unit_price', 'total_cost', 'notes')
-    readonly_fields = ('total_cost',)
+    extra = 1
+
+    fields = ('product', 'quantity', 'unit_price', 'line_total', 'notes')
+    readonly_fields = ('line_total',)
+    autocomplete_fields = ('product',)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def has_add_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_add_permission(request, obj)
+
 
 # ==========================================
 # 2. Main Purchase Invoice Admin Configuration
@@ -26,84 +40,122 @@ class PurchaseInvoiceItemInline(TabularInline):
 @admin.register(PurchaseInvoice)
 class PurchaseInvoiceAdmin(ModelAdmin):
     list_display = (
-        'invoice_number', 
-        'supplier', 
-        'branch', 
-        'warehouse', 
-        'invoice_date', 
-        'status', 
-        'total_amount'
+        'invoice_number',
+        'company',
+        'supplier',
+        'branch',
+        'warehouse',
+        'invoice_date',
+        'status',
+        'total_amount',
     )
-    
+
     list_filter = (
-        'status', 
-        'branch', 
-        'warehouse', 
-        'invoice_date'
+        'company',
+        'status',
+        'branch',
+        'warehouse',
+        'invoice_date',
     )
-    
+
     search_fields = (
-        'invoice_number', 
-        'vendor_bill_number', 
-        'supplier__name', 
-        'notes'
+        'invoice_number',
+        'vendor_bill_number',
+        'supplier__name',
+        'notes',
     )
-    
-    inlines = [PurchaseInvoiceItemInline]
-    
-    # locking calculated and auto-generated fields to prevent manual tampering.
-    readonly_fields = (
-        'invoice_number', 
-        'total_amount', 
-        'created_at', 
-        'updated_at'
-    )
-    
+
     ordering = ('-invoice_date', '-id')
 
+    inlines = [PurchaseInvoiceItemInline]
+
+    autocomplete_fields = ('company', 'branch', 'supplier', 'warehouse')
+
+    readonly_fields = (
+        'invoice_number',
+        'total_amount',
+        'created_at',
+        'updated_at',
+        'created_by',
+        'updated_by',
+    )
+
+    actions = ['post_invoices']
+
     fieldsets = (
-        ('البيانات الأساسية (Basic Information)', {
+        ('البيانات الأساسية', {
             'fields': (
+                'company',
                 ('invoice_number', 'invoice_date'),
                 ('branch', 'warehouse'),
-                ('supplier', 'status')
+                ('supplier', 'status'),
             )
         }),
-        # التعديل الأول: قسم خاص بالتكلفة الشاملة (Landed Costs)
-        ('التكلفة الشاملة للمشتريات (Landed Costs)', {
+        ('التكلفة الشاملة للمشتريات', {
             'fields': (
                 ('shipping_cost', 'clearance_cost'),
                 'commission_percentage',
             ),
-            'description': 'أدخل المصاريف الإضافية هنا ليقوم النظام بتوزيعها على المنتجات وتحديث متوسط التكلفة تلقائياً.',
+            'description': 'المصاريف الإضافية يمكن استخدامها لاحقًا في توزيع التكلفة الفعلية على الأصناف.',
         }),
-        ('الارتباطات والتفاصيل المالية (Links & Financials)', {
+        ('التفاصيل المالية والمرجعية', {
             'fields': (
-                ('purchase_order', 'vendor_bill_number'),
+                'vendor_bill_number',
                 'total_amount',
-                'notes'
+                'notes',
             )
         }),
-        ('سجلات النظام (System Records)', {
+        ('سجلات النظام', {
             'fields': (
                 ('created_at', 'updated_at'),
+                ('created_by', 'updated_by'),
             ),
             'classes': ('collapse',),
         }),
     )
 
-    # التعديل الثاني: تنفيذ خوارزمية التكلفة عند التأكيد
-    def save_model(self, request, obj, form, change):
-        # نحفظ الفاتورة الأول عشان تاخد ID والمنتجات والـ Inlines تتحفظ
-        super().save_model(request, obj, form, change)
-        
-        # لو المحاسب غير الحالة لـ "مؤكدة"، ننده على السيرفيس تحسب الليلة دي كلها
-        if obj.status == 'confirmed':
+    @admin.action(description="ترحيل فواتير المشتريات المختارة")
+    def post_invoices(self, request, queryset):
+        posted_count = 0
+
+        for invoice in queryset:
+            if invoice.status != 'draft':
+                self.message_user(
+                    request,
+                    f"تم تخطي الفاتورة {invoice.invoice_number}: ليست في حالة draft.",
+                    level=messages.WARNING
+                )
+                continue
+
             try:
-                success, msg = InventorySyncService.process_purchase_invoice(obj)
-                if success:
-                    messages.success(request, msg)
-                else:
-                    messages.warning(request, f"تنبيه: {msg}")
-            except Exception as e:
-                messages.error(request, f"خطأ برمجي أثناء الترحيل: {str(e)}")
+                PurchaseService.post_invoice(invoice)
+                posted_count += 1
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f"فشل ترحيل الفاتورة {invoice.invoice_number}: {exc}",
+                    level=messages.ERROR
+                )
+
+        if posted_count:
+            self.message_user(
+                request,
+                f"تم ترحيل {posted_count} فاتورة مشتريات بنجاح.",
+                level=messages.SUCCESS
+            )
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by_id:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_delete_permission(request, obj)
