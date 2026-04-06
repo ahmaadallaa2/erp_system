@@ -1,1 +1,2 @@
-from .sales_invoice import SalesInvoice, SalesInvoiceItem
+from .sales_invoice import SalesInvoice
+from .sales_invoice_item import SalesInvoiceItem

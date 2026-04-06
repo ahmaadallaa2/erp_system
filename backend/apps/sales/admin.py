@@ -1,62 +1,151 @@
-# apps/sales/admin.py
-
 from django.contrib import admin, messages
 from unfold.admin import ModelAdmin, TabularInline
-from .models.sales_invoice import SalesInvoice, SalesInvoiceItem
+
+from .models.sales_invoice import SalesInvoice
+from .models.sales_invoice_item import SalesInvoiceItem
 from .services.sales_service import SalesService
 
+
+# ==========================================
+# 1. Inline Configuration for Sales Invoice Items
+# ==========================================
 class SalesInvoiceItemInline(TabularInline):
     model = SalesInvoiceItem
     extra = 1
-    fields = ('product', 'quantity', 'unit_price', 'total_price')
-    readonly_fields = ('total_price',)
 
+    fields = ('product', 'quantity', 'unit_price', 'line_total', 'notes')
+    readonly_fields = ('line_total',)
+    autocomplete_fields = ('product',)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def has_add_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_add_permission(request, obj)
+
+
+# ==========================================
+# 2. Main Sales Invoice Admin Configuration
+# ==========================================
 @admin.register(SalesInvoice)
 class SalesInvoiceAdmin(ModelAdmin):
-    # 1. التعديل هنا: إضافة 'warehouse' للجدول الخارجي
-    list_display = ('invoice_number', 'customer', 'warehouse', 'date', 'total_amount', 'status')
-    
-    # 2. التعديل هنا: إضافة 'warehouse' للفلاتر الجانبية
-    list_filter = ('status', 'warehouse', 'date')
-    
-    search_fields = ('invoice_number', 'customer__name')
+    list_display = (
+        'invoice_number',
+        'company',
+        'customer',
+        'branch',
+        'warehouse',
+        'date',
+        'status',
+        'total_amount',
+    )
+
+    list_filter = (
+        'company',
+        'status',
+        'branch',
+        'warehouse',
+        'date',
+    )
+
+    search_fields = (
+        'invoice_number',
+        'customer__name',
+        'notes',
+    )
+
+    ordering = ('-date', '-id')
+
     inlines = [SalesInvoiceItemInline]
-    autocomplete_fields = ('customer',)
-    
-    # الحقول اللي السيستم بيكريتها أوتوماتيك
-    readonly_fields = ('invoice_number', 'created_at', 'updated_at', 'created_by', 'updated_by')
+
+    autocomplete_fields = ('company', 'branch', 'customer', 'warehouse')
+
+    readonly_fields = (
+        'invoice_number',
+        'total_amount',
+        'created_at',
+        'updated_at',
+        'created_by',
+        'updated_by',
+    )
+
+    actions = ['post_invoices']
 
     fieldsets = (
         ('البيانات الأساسية', {
             'fields': (
-                ('customer', 'date'),
-                ('warehouse', 'status'),
-                ('payment_type', 'treasury_account'), # <--- ضفناهم هنا في سطر واحد
-                'notes'
+                'company',
+                ('invoice_number', 'date'),
+                ('branch', 'warehouse'),
+                ('customer', 'status'),
             )
         }),
-        # ... باقي الكود ...
+        ('التفاصيل المالية', {
+            'fields': (
+                'total_amount',
+                'notes',
+            )
+        }),
         ('سجلات النظام', {
             'fields': (
-                'invoice_number',
-                ('created_at', 'updated_at'), 
-                ('created_by', 'updated_by')
+                ('created_at', 'updated_at'),
+                ('created_by', 'updated_by'),
             ),
             'classes': ('collapse',),
         }),
     )
 
-    def save_model(self, request, obj, form, change):
-        # نحفظ الفاتورة الأول عشان تاخد ID والمنتجات تتحفظ
-        super().save_model(request, obj, form, change)
-        
-        # لو المحاسب غير الحالة لـ "مؤكدة"، ننده على السيرفيس ترحل الشغل
-        if obj.status == 'confirmed':
+    @admin.action(description="ترحيل فواتير المبيعات المختارة")
+    def post_invoices(self, request, queryset):
+        posted_count = 0
+
+        for invoice in queryset:
+            if invoice.status != 'draft':
+                self.message_user(
+                    request,
+                    f"تم تخطي الفاتورة {invoice.invoice_number}: ليست في حالة draft.",
+                    level=messages.WARNING
+                )
+                continue
+
             try:
-                success, msg = SalesService.process_sales_invoice(obj)
-                if success:
-                    messages.success(request, msg)
-                else:
-                    messages.warning(request, f"تنبيه: {msg}")
-            except Exception as e:
-                messages.error(request, f"خطأ برمجي أثناء الترحيل: {str(e)}")
+                SalesService.post_invoice(invoice)
+                posted_count += 1
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f"فشل ترحيل الفاتورة {invoice.invoice_number}: {exc}",
+                    level=messages.ERROR
+                )
+
+        if posted_count:
+            self.message_user(
+                request,
+                f"تم ترحيل {posted_count} فاتورة مبيعات بنجاح.",
+                level=messages.SUCCESS
+            )
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.created_by_id:
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.status == 'posted':
+            return False
+        return super().has_delete_permission(request, obj)

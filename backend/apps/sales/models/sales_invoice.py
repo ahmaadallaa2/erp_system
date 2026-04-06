@@ -1,113 +1,117 @@
-# apps/sales/models/invoice.py
+from decimal import Decimal
 
 from django.db import models
+from django.db.models import Q
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from decimal import Decimal
+
 from apps.core.models import SoftDeleteModel, Sequence
+
 
 class SalesInvoice(SoftDeleteModel):
     STATUS_CHOICES = [
         ('draft', _('مسودة')),
-        ('confirmed', _('مؤكدة / تم التسليم')),
+        ('posted', _('مرحلة')),
         ('cancelled', _('ملغاة')),
     ]
 
-    PAYMENT_CHOICES = [
-        ('credit', 'آجل (على الحساب)'),
-        ('cash', 'كاش (نقدي)'),
-        ('bank transfer', 'تحويل بنكي')
-    ]
+    company = models.ForeignKey(
+        'core.Company',
+        on_delete=models.RESTRICT,
+        related_name='sales_invoices',
+        verbose_name=_("الشركة")
+    )
 
-    invoice_number = models.CharField(_("رقم الفاتورة"), max_length=50, unique=True, blank=True)
-    
-    
+    branch = models.ForeignKey(
+        'core.Branch',
+        on_delete=models.RESTRICT,
+        related_name='sales_invoices',
+        verbose_name=_("الفرع")
+    )
+
+    invoice_number = models.CharField(
+        _("رقم الفاتورة"),
+        max_length=50,
+        blank=True
+    )
+
     customer = models.ForeignKey(
-        'partners.Partner', 
-        on_delete=models.RESTRICT, 
+        'partners.Partner',
+        on_delete=models.RESTRICT,
         related_name='sales_invoices',
         verbose_name=_("العميل"),
         limit_choices_to={'partner_type__in': ['customer', 'both']}
     )
-    
-    # الحقل الجديد اللي هنضيفه
+
     warehouse = models.ForeignKey(
         'inventory.Warehouse',
         on_delete=models.RESTRICT,
         related_name='sales_invoices',
         verbose_name=_("المخزن (يُصرف منه)"),
-        null=True, # حطيناها True مؤقتاً عشان المايجريشن ميضربش لو عندك فواتير قديمة متسجلة
+        null=True,
+        blank=True,
     )
 
-    payment_type = models.CharField(_("طريقة الدفع"), max_length=20, choices=PAYMENT_CHOICES, blank=True)
-
-    treasury_account = models.ForeignKey(
-        'accounting.Account', 
-        on_delete=models.RESTRICT, 
-        related_name='cash_sales',
-        verbose_name=_("حساب الخزينة (للكاش)"),
-        null=True, blank=True,
-        limit_choices_to={'code__startswith': '1001'} # بافتراض إن كود الخزينة عندك بيبدأ بـ 1001
-
+    date = models.DateField(
+        _("تاريخ الفاتورة"),
+        default=timezone.now
     )
-    date = models.DateField(_("تاريخ الفاتورة"), default=timezone.now)
-    status = models.CharField(_("الحالة"), max_length=20, choices=STATUS_CHOICES, default='draft')
-    
-    notes = models.TextField(_("ملاحظات"), blank=True)
+
+    status = models.CharField(
+        _("الحالة"),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='draft'
+    )
+
+    total_amount = models.DecimalField(
+        _("إجمالي الفاتورة"),
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        editable=False
+    )
+
+    notes = models.TextField(
+        _("ملاحظات"),
+        blank=True
+    )
 
     class Meta:
         verbose_name = _("فاتورة مبيعات")
         verbose_name_plural = _("فواتير المبيعات")
         ordering = ['-date', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['branch', 'invoice_number'],
+                condition=Q(is_deleted=False),
+                name='unique_sales_invoice_number_per_branch'
+            )
+        ]
 
     def __str__(self):
         return f"{self.invoice_number} - {self.customer.name}"
 
+    def clean(self):
+        super().clean()
+
+        if self.branch and self.company and self.branch.company_id != self.company_id:
+            raise ValidationError(_("الفرع لا يتبع نفس الشركة."))
+
+        if self.customer and self.company and self.customer.company_id != self.company_id:
+            raise ValidationError(_("العميل لا يتبع نفس الشركة."))
+
+        if self.warehouse and self.company and self.warehouse.company_id != self.company_id:
+            raise ValidationError(_("المخزن لا يتبع نفس الشركة."))
+
     def save(self, *args, **kwargs):
         if not self.invoice_number:
-            # استخدام التسلسل التلقائي اللي برمجناه في الكور
-            self.invoice_number = Sequence.next_number('sales_invoice_sequence', prefix='INV-', padding=5)
+            if not self.branch_id:
+                raise ValueError("Sales invoice must have a branch before generating invoice number.")
+
+            seq_key = f"sinv_branch_{self.branch_id}"
+            self.invoice_number = Sequence.next_number(seq_key, prefix='SINV-', padding=5)
+
+        self.full_clean()
         super().save(*args, **kwargs)
-
-    @property
-    def total_amount(self):
-        # لو مفيش id (يعني الفاتورة لسه بتتكريت ومفيهاش منتجات)، رجع صفر
-        if not self.pk:
-            return Decimal('0.00')
-        
-        # تجميع إجمالي الفاتورة من السطور
-        total = sum(item.total_price for item in self.items.all())
-        return total or Decimal('0.00')
-
-
-class SalesInvoiceItem(models.Model):
-    invoice = models.ForeignKey(
-        SalesInvoice, 
-        on_delete=models.CASCADE, 
-        related_name='items',
-        verbose_name=_("الفاتورة")
-    )
-    product = models.ForeignKey(
-        'inventory.Product', 
-        on_delete=models.RESTRICT, 
-        related_name='sales_items',
-        verbose_name=_("المنتج")
-    )
-    
-    quantity = models.DecimalField(_("الكمية"), max_digits=10, decimal_places=2, default=Decimal('1.00')) 
-    # (تأكد إنك عامل from decimal import Decimal فوق)
-    unit_price = models.DecimalField(_("سعر الوحدة"), max_digits=10, decimal_places=2)
-    
-    class Meta:
-        verbose_name = _("صنف الفاتورة")
-        verbose_name_plural = _("أصناف الفاتورة")
-
-    def __str__(self):
-        return f"{self.product.name} - {self.quantity}"
-
-    @property
-    def total_price(self):
-        # بنحول الكمية والسعر لـ String وبعدين Decimal عشان نمنع أي كراش
-        qty = Decimal(str(self.quantity or '0'))
-        price = Decimal(str(self.unit_price or '0'))
-        return qty * price

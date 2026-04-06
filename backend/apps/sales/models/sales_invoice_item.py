@@ -8,9 +8,13 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.models import BaseModel
 
 
-class PurchaseInvoiceItem(BaseModel):
+class SalesInvoiceItem(BaseModel):
+    """
+    سطور فاتورة المبيعات.
+    """
+
     invoice = models.ForeignKey(
-        'purchases.PurchaseInvoice',
+        'sales.SalesInvoice',
         on_delete=models.CASCADE,
         related_name='items',
         verbose_name=_("الفاتورة")
@@ -19,12 +23,21 @@ class PurchaseInvoiceItem(BaseModel):
     product = models.ForeignKey(
         'inventory.Product',
         on_delete=models.RESTRICT,
-        related_name='purchase_invoice_items',
+        related_name='sales_invoice_items',
         verbose_name=_("المنتج")
     )
 
-    quantity = models.DecimalField(_("الكمية"), max_digits=10, decimal_places=2)
-    unit_price = models.DecimalField(_("سعر الوحدة"), max_digits=10, decimal_places=2)
+    quantity = models.DecimalField(
+        _("الكمية"),
+        max_digits=10,
+        decimal_places=2
+    )
+
+    unit_price = models.DecimalField(
+        _("سعر الوحدة"),
+        max_digits=10,
+        decimal_places=2
+    )
 
     line_total = models.DecimalField(
         _("إجمالي السطر"),
@@ -34,11 +47,15 @@ class PurchaseInvoiceItem(BaseModel):
         default=Decimal("0.00")
     )
 
-    notes = models.TextField(_("ملاحظات"), blank=True, null=True)
+    notes = models.TextField(
+        _("ملاحظات"),
+        blank=True,
+        null=True
+    )
 
     class Meta:
-        verbose_name = _("عنصر فاتورة مشتريات")
-        verbose_name_plural = _("عناصر فواتير المشتريات")
+        verbose_name = _("عنصر فاتورة مبيعات")
+        verbose_name_plural = _("عناصر فواتير المبيعات")
         ordering = ['id']
 
     def __str__(self):
@@ -58,7 +75,7 @@ class PurchaseInvoiceItem(BaseModel):
                 raise ValidationError(_("المنتج لا يتبع نفس شركة الفاتورة."))
 
         if not self._state.adding and self.invoice.status == 'posted':
-            raise ValidationError(_("لا يمكن تعديل سطور فاتورة مشتريات بعد ترحيلها."))
+            raise ValidationError(_("لا يمكن تعديل سطور فاتورة المبيعات بعد ترحيلها."))
 
     def save(self, *args, **kwargs):
         raw_total = (self.quantity or Decimal("0.00")) * (self.unit_price or Decimal("0.00"))
@@ -70,7 +87,7 @@ class PurchaseInvoiceItem(BaseModel):
 
     def delete(self, *args, **kwargs):
         if self.invoice.status == 'posted':
-            raise ValidationError(_("لا يمكن حذف سطور فاتورة مشتريات بعد ترحيلها."))
+            raise ValidationError(_("لا يمكن حذف سطور فاتورة المبيعات بعد ترحيلها."))
 
         invoice_reference = self.invoice
         super().delete(*args, **kwargs)
@@ -82,8 +99,5 @@ class PurchaseInvoiceItem(BaseModel):
     @staticmethod
     def _recalculate_invoice_total(invoice):
         total = invoice.items.aggregate(total=Sum('line_total')).get('total') or Decimal("0.00")
-        total += (invoice.shipping_cost or Decimal("0.00"))
-        total += (invoice.clearance_cost or Decimal("0.00"))
-
         invoice.total_amount = total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         invoice.save(update_fields=['total_amount', 'updated_at'])
