@@ -1,8 +1,9 @@
-# apps/users/urls.py
 from django.urls import path
-from ..api.views.auth_views import CustomTokenObtainPairView
+from .views import LoginAPIView, RefreshAPIView, MeAPIView, ContextAPIView
 
 urlpatterns = [
-    # مسار اللوجين اللي هيرجع الـ Access والـ Refresh توكن
-    path('api/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path("login/", LoginAPIView.as_view(), name="api-login"),
+    path("refresh/", RefreshAPIView.as_view(), name="api-refresh"),
+    path("me/", MeAPIView.as_view(), name="api-me"),
+    path("context/", ContextAPIView.as_view(), name="api-context"),
 ]
