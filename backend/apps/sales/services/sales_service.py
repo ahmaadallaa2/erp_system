@@ -18,16 +18,19 @@ class SalesService:
         - تغيير حالة الفاتورة إلى posted
         """
 
-        if invoice.status != 'draft':
+        if invoice.status != "draft":
             raise ValueError("Only draft sales invoices can be posted.")
 
-        items = list(invoice.items.select_related('product'))
+        items = list(invoice.items.select_related("product"))
         if not items:
             raise ValueError("Cannot post an empty sales invoice.")
 
+        if invoice.total_amount <= Decimal("0.00"):
+            raise ValueError("Invoice total must be greater than zero before posting.")
+
         stock_items = [
             item for item in items
-            if item.product and item.product.product_type != 'service'
+            if item.product and item.product.product_type != "service"
         ]
 
         stock_tx = None
@@ -35,15 +38,17 @@ class SalesService:
         # نعمل حركة مخزنية فقط لو فيه أصناف تحتاج صرف فعلي من المخزن
         if stock_items:
             if not invoice.warehouse_id:
-                raise ValueError("Warehouse is required to post stock items in a sales invoice.")
+                raise ValueError(
+                    "Warehouse is required to post stock items in a sales invoice."
+                )
 
             stock_tx = StockTransaction.objects.create(
                 company=invoice.company,
-                transaction_type='OUT',
+                transaction_type="OUT",
                 source_warehouse=invoice.warehouse,
                 date=invoice.date,
                 reference=invoice.invoice_number,
-                notes=f"Sales Invoice: {invoice.invoice_number}"
+                notes=f"Sales Invoice: {invoice.invoice_number}",
             )
 
             for item in stock_items:
@@ -54,12 +59,12 @@ class SalesService:
                     product=product,
                     quantity=item.quantity,
                     unit_cost=product.average_cost or Decimal("0.00"),
-                    note=f"From Sales Invoice {invoice.invoice_number}"
+                    note=f"From Sales Invoice {invoice.invoice_number}",
                 )
 
             StockService.post_transaction(stock_tx)
 
-        invoice.status = 'posted'
-        invoice.save(update_fields=['status', 'updated_at'])
+        invoice.status = "posted"
+        invoice.save(update_fields=["status", "updated_at"])
 
-        return stock_tx
+        return invoice

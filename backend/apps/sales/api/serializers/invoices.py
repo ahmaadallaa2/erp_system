@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 from apps.sales.models import SalesInvoice, SalesInvoiceItem
 
 
@@ -28,10 +29,14 @@ class SalesInvoiceItemSerializer(serializers.ModelSerializer):
         user = request.user
 
         if user.company and value.company_id != user.company_id:
-            raise serializers.ValidationError("Selected invoice does not belong to the user's company.")
+            raise serializers.ValidationError(
+                "Selected invoice does not belong to the user's company."
+            )
 
         if value.status != "draft":
-            raise serializers.ValidationError("Items can only be added to draft invoices.")
+            raise serializers.ValidationError(
+                "Items can only be added to draft invoices."
+            )
 
         return value
 
@@ -40,7 +45,9 @@ class SalesInvoiceItemSerializer(serializers.ModelSerializer):
         user = request.user
 
         if user.company and value.company_id != user.company_id:
-            raise serializers.ValidationError("Selected product does not belong to the user's company.")
+            raise serializers.ValidationError(
+                "Selected product does not belong to the user's company."
+            )
 
         return value
 
@@ -81,10 +88,14 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
         user = request.user
 
         if user.company and value.company_id != user.company_id:
-            raise serializers.ValidationError("Selected customer does not belong to the user's company.")
+            raise serializers.ValidationError(
+                "Selected customer does not belong to the user's company."
+            )
 
         if value.partner_type not in ["customer", "both"]:
-            raise serializers.ValidationError("Selected partner is not a customer.")
+            raise serializers.ValidationError(
+                "Selected partner is not a customer."
+            )
 
         return value
 
@@ -96,6 +107,8 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
         user = request.user
 
         if user.company and value.company_id != user.company_id:
-            raise serializers.ValidationError("Selected warehouse does not belong to the user's company.")
+            raise serializers.ValidationError(
+                "Selected warehouse does not belong to the user's company."
+            )
 
         return value

@@ -35,11 +35,12 @@ LOGOUT_REDIRECT_URL = 'login'
 # Applications
 # -----------------------------------------------------------------------------
 INSTALLED_APPS = [
+    # Unfold Admin
     "unfold",
     "unfold.contrib.filters",
     "unfold.contrib.forms",
     "unfold.contrib.inlines",
-
+    #django apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    # Third-party apps
     'rest_framework',
     'corsheaders',
     "rest_framework_simplejwt",
@@ -179,6 +181,32 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}   
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "ERP System API",
+    "DESCRIPTION": "ERP Backend APIs for Sales, Purchases, Inventory and Accounting",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "TAGS": [
+        {"name": "Auth", "description": "Authentication APIs"},
+        {"name": "Partners", "description": "Customers and suppliers APIs"},
+        {"name": "Inventory - Master Data", "description": "Units, products, and warehouses"},
+        {"name": "Inventory - Transactions", "description": "Stock transactions and stock movements"},
+        {"name": "Inventory - Reports", "description": "Stock balances and inventory inquiries"},
+        {"name": "Sales Invoices", "description": "Sales invoices operations"},
+        {"name": "Sales Invoice Items", "description": "Sales invoice items operations"},
+        {"name": "Purchase Invoices", "description": "Purchase invoices operations"},
+        {"name": "Purchase Invoice Items", "description": "Purchase invoice items operations"},
+    ],
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "displayOperationId": False,
+        "defaultModelsExpandDepth": 1,
+        "defaultModelExpandDepth": 1,
+        "displayRequestDuration": True,
+    },
 }
 
 SIMPLE_JWT = {
