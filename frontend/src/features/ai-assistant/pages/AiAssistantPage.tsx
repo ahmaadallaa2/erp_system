@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { askAiDocument } from "../api/ask-document";
+import { deleteAiDocument } from "../api/delete-document";
 import { listAiDocuments } from "../api/list-documents";
 import { processAiDocument } from "../api/process-document";
 import { uploadAiDocument } from "../api/upload-document";
@@ -82,6 +83,36 @@ function AiAssistantPage() {
         backendResponse: axios.isAxiosError(err) ? err.response?.data : null,
       });
       setError(backendError || "Failed to process document.");
+    } finally {
+      setBusyDocumentId("");
+    }
+  }
+
+  async function handleDelete(document: AiDocument) {
+    const displayName = document.original_filename || "this document";
+    const confirmed = window.confirm(`Delete ${displayName}?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setBusyDocumentId(document.id);
+      setError("");
+      await deleteAiDocument(document.id);
+      setDocuments((current) => current.filter((item) => item.id !== document.id));
+
+      if (selectedDocumentId === document.id) {
+        setSelectedDocumentId("");
+        setAnswer(null);
+      }
+    } catch (err) {
+      const backendError = getBackendErrorMessage(err);
+      console.error("AI document delete error:", {
+        error: err,
+        backendResponse: axios.isAxiosError(err) ? err.response?.data : null,
+      });
+      setError(backendError || "Failed to delete document.");
     } finally {
       setBusyDocumentId("");
     }
@@ -185,6 +216,13 @@ function AiAssistantPage() {
                         style={secondaryButtonStyle}
                       >
                         {busyDocumentId === document.id ? "Processing..." : "Process"}
+                      </button>
+                      <button
+                        disabled={busyDocumentId === document.id}
+                        onClick={() => handleDelete(document)}
+                        style={dangerButtonStyle}
+                      >
+                        Delete
                       </button>
                     </td>
                   </tr>
@@ -301,6 +339,16 @@ const secondaryButtonStyle: React.CSSProperties = {
   border: "1px solid #cbd5e1",
   borderRadius: "8px",
   cursor: "pointer",
+  padding: "8px 12px",
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  background: "#fff1f2",
+  border: "1px solid #fecdd3",
+  borderRadius: "8px",
+  color: "#be123c",
+  cursor: "pointer",
+  marginLeft: "8px",
   padding: "8px 12px",
 };
 

@@ -46,6 +46,7 @@ class DocumentViewSet(
     mixins.CreateModelMixin,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
     serializer_class = DocumentSerializer
@@ -90,6 +91,26 @@ class DocumentViewSet(
             company=user.company,
             uploaded_by=user,
         )
+
+    @extend_schema(
+        summary="Delete AI document",
+        description="Delete an uploaded AI document and clean its chunks and local FAISS index.",
+        tags=["AI Assistant"],
+        responses={204: None},
+    )
+    def destroy(self, request, *args, **kwargs):
+        document = self.get_object()
+
+        try:
+            FaissStoreService.delete_document_index(document)
+        except OSError as exc:
+            raise ValidationError(f"Failed to delete FAISS index: {exc}") from exc
+
+        if document.file:
+            document.file.delete(save=False)
+
+        document.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
         summary="Process AI document",

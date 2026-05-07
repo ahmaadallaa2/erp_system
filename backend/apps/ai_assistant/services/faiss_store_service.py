@@ -1,4 +1,5 @@
 import json
+import shutil
 from pathlib import Path
 
 from django.conf import settings
@@ -149,6 +150,12 @@ class FaissStoreService:
             )
 
         return results
+
+    @classmethod
+    def delete_document_index(cls, document):
+        index_dir = cls._document_index_dir(document)
+        if index_dir.exists():
+            shutil.rmtree(index_dir)
 
     @staticmethod
     def _document_index_dir(document):
