@@ -10,7 +10,9 @@ pillow==12.1.0
 psycopg2-binary==2.9.11
 pydotplus==2.0.2
 PyJWT==2.11.0
+pypdf>=5.0,<7.0
 pyparsing==3.3.2
+python-docx>=1.1,<2.0
 python-dotenv==1.2.1
 sqlparse==0.5.5
 tzdata==2025.3

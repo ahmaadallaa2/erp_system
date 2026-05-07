@@ -20,6 +20,8 @@ def document_upload_path(instance, filename):
 class Document(SoftDeleteModel):
     class Status(models.TextChoices):
         UPLOADED = "uploaded", _("Uploaded")
+        PROCESSING = "processing", _("Processing")
+        READY = "ready", _("Ready")
         FAILED = "failed", _("Failed")
 
     ALLOWED_EXTENSIONS = {".pdf", ".docx"}
@@ -107,3 +109,47 @@ class Document(SoftDeleteModel):
 
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class DocumentChunk(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name="chunks",
+        verbose_name=_("Document"),
+    )
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name="ai_document_chunks",
+        verbose_name=_("Company"),
+    )
+    chunk_index = models.PositiveIntegerField(_("Chunk index"))
+    text = models.TextField(_("Text"))
+    page_number = models.PositiveIntegerField(
+        _("Page number"),
+        null=True,
+        blank=True,
+    )
+    char_start = models.PositiveIntegerField(_("Character start"), default=0)
+    char_end = models.PositiveIntegerField(_("Character end"), default=0)
+    created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("AI Document Chunk")
+        verbose_name_plural = _("AI Document Chunks")
+        ordering = ["document", "chunk_index"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document", "chunk_index"],
+                name="unique_ai_document_chunk_index",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["company", "document"]),
+            models.Index(fields=["document", "chunk_index"]),
+        ]
+
+    def __str__(self):
+        return f"{self.document} - chunk {self.chunk_index}"

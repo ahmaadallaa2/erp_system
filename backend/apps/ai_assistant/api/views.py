@@ -1,11 +1,15 @@
 from rest_framework import mixins, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework import status
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.ai_assistant.models import Document
-from .serializers import DocumentSerializer
+from apps.ai_assistant.services import DocumentProcessingService
+from .serializers import DocumentChunkSerializer, DocumentSerializer
 
 
 @extend_schema_view(
@@ -51,3 +55,35 @@ class DocumentViewSet(
             company=user.company,
             uploaded_by=user,
         )
+
+    @extend_schema(
+        summary="Process AI document",
+        description="Extract text from a PDF/DOCX document and store text chunks. No embeddings are created.",
+        tags=["AI Assistant"],
+        responses={200: DocumentSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="process")
+    def process_document(self, request, pk=None):
+        document = self.get_object()
+
+        try:
+            DocumentProcessingService.process(document)
+        except (RuntimeError, ValueError) as exc:
+            raise ValidationError(str(exc))
+
+        document.refresh_from_db()
+        serializer = self.get_serializer(document)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="List AI document chunks",
+        description="Retrieve text chunks extracted from one document.",
+        tags=["AI Assistant"],
+        responses=DocumentChunkSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"], url_path="chunks")
+    def chunks(self, request, pk=None):
+        document = self.get_object()
+        queryset = document.chunks.order_by("chunk_index")
+        serializer = DocumentChunkSerializer(queryset, many=True)
+        return Response(serializer.data)

@@ -1,9 +1,11 @@
 from rest_framework import serializers
 
-from apps.ai_assistant.models import Document
+from apps.ai_assistant.models import Document, DocumentChunk
 
 
 class DocumentSerializer(serializers.ModelSerializer):
+    chunks_count = serializers.IntegerField(source="chunks.count", read_only=True)
+
     class Meta:
         model = Document
         fields = [
@@ -16,6 +18,7 @@ class DocumentSerializer(serializers.ModelSerializer):
             "file_size",
             "status",
             "notes",
+            "chunks_count",
             "created_at",
             "updated_at",
         ]
@@ -27,6 +30,23 @@ class DocumentSerializer(serializers.ModelSerializer):
             "file_type",
             "file_size",
             "status",
+            "chunks_count",
             "created_at",
             "updated_at",
         ]
+
+
+class DocumentChunkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentChunk
+        fields = [
+            "id",
+            "document",
+            "chunk_index",
+            "text",
+            "page_number",
+            "char_start",
+            "char_end",
+            "created_at",
+        ]
+        read_only_fields = fields
