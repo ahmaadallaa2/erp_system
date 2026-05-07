@@ -50,12 +50,7 @@ class DocumentViewSet(
 ):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = [JSONParser]
-
-    def get_parsers(self):
-        if getattr(self, "action", None) == "create":
-            return [MultiPartParser(), FormParser()]
-        return [JSONParser()]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -98,7 +93,7 @@ class DocumentViewSet(
 
     @extend_schema(
         summary="Process AI document",
-        description="Extract text from a PDF/DOCX document and store text chunks. No embeddings are created.",
+        description="Extract text, create chunks, generate embeddings, and build the local FAISS index.",
         tags=["AI Assistant"],
         request=None,
         responses={200: DocumentSerializer},

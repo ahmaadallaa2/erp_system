@@ -4,6 +4,7 @@ from apps.ai_assistant.models import DocumentChunk
 
 from .chunking_service import ChunkingService
 from .extraction_service import ExtractionService
+from .faiss_store_service import FaissStoreService
 
 
 class DocumentProcessingService:
@@ -36,6 +37,8 @@ class DocumentProcessingService:
                     for index, chunk in enumerate(chunks)
                 ]
             )
+
+            FaissStoreService.build_document_index(document)
 
             document.status = document.Status.READY
             document.notes = ""
