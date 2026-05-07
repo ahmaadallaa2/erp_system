@@ -50,14 +50,12 @@ class DocumentViewSet(
 ):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser]
 
-    def get_parser_classes(self):
-        if self.action == "create":
-            return [MultiPartParser, FormParser]
-        if self.action == "ask":
-            return [JSONParser]
-        return [JSONParser]
+    def get_parsers(self):
+        if getattr(self, "action", None) == "create":
+            return [MultiPartParser(), FormParser()]
+        return [JSONParser()]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -105,7 +103,12 @@ class DocumentViewSet(
         request=None,
         responses={200: DocumentSerializer},
     )
-    @action(detail=True, methods=["post"], url_path="process")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="process",
+        parser_classes=[JSONParser],
+    )
     def process_document(self, request, pk=None):
         document = self.get_object()
 
@@ -138,7 +141,12 @@ class DocumentViewSet(
         request=SemanticSearchRequestSerializer,
         responses={200: SemanticSearchResultSerializer(many=True)},
     )
-    @action(detail=True, methods=["post"], url_path="search")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="search",
+        parser_classes=[JSONParser],
+    )
     def search(self, request, pk=None):
         document = self.get_object()
         serializer = SemanticSearchRequestSerializer(data=request.data)
@@ -163,7 +171,12 @@ class DocumentViewSet(
         request=AskDocumentRequestSerializer,
         responses={200: AskDocumentResponseSerializer},
     )
-    @action(detail=True, methods=["post"], url_path="ask")
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="ask",
+        parser_classes=[JSONParser],
+    )
     def ask(self, request, pk=None):
         document = self.get_object()
         serializer = AskDocumentRequestSerializer(data=request.data)

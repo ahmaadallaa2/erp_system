@@ -1,4 +1,5 @@
 from rest_framework import serializers
+import os
 
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
@@ -47,6 +48,13 @@ class DocumentSerializer(serializers.ModelSerializer):
 class DocumentUploadSerializer(serializers.Serializer):
     file = BinaryFileField(write_only=True)
     notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_file(self, file):
+        ext = os.path.splitext(file.name)[1].lower()
+        if ext not in Document.ALLOWED_EXTENSIONS:
+            raise serializers.ValidationError("Only PDF and DOCX files are allowed.")
+
+        return file
 
     def create(self, validated_data):
         return Document.objects.create(**validated_data)

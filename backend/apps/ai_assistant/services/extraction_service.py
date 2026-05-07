@@ -20,7 +20,7 @@ class ExtractionService:
         if ext == ".docx":
             return ExtractionService._extract_docx(file_path)
 
-        raise ValueError("Unsupported document type.")
+        raise ValueError("Unsupported document type. Only PDF and DOCX files are supported.")
 
     @staticmethod
     def _extract_pdf(file_path):
@@ -29,14 +29,30 @@ class ExtractionService:
         except ImportError as exc:
             raise RuntimeError("pypdf is required to extract PDF text.") from exc
 
-        reader = PdfReader(file_path)
+        try:
+            reader = PdfReader(file_path)
+        except Exception as exc:
+            raise RuntimeError(
+                "PDF text extraction failed. The file may be corrupted, encrypted, or unreadable."
+            ) from exc
+
         blocks = []
 
-        for index, page in enumerate(reader.pages, start=1):
-            text = page.extract_text() or ""
-            text = text.strip()
-            if text:
-                blocks.append(ExtractedTextBlock(text=text, page_number=index))
+        try:
+            for index, page in enumerate(reader.pages, start=1):
+                text = page.extract_text() or ""
+                text = text.strip()
+                if text:
+                    blocks.append(ExtractedTextBlock(text=text, page_number=index))
+        except Exception as exc:
+            raise RuntimeError(
+                "PDF text extraction failed while reading pages. The PDF may be scanned, encrypted, or unsupported."
+            ) from exc
+
+        if not blocks:
+            raise ValueError(
+                "No extractable text was found in this PDF. The PDF may be scanned or image-only."
+            )
 
         return blocks
 
