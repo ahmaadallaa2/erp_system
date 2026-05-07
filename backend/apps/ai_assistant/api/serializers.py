@@ -5,6 +5,7 @@ from apps.ai_assistant.models import Document, DocumentChunk
 
 class DocumentSerializer(serializers.ModelSerializer):
     chunks_count = serializers.IntegerField(source="chunks.count", read_only=True)
+    file = serializers.FileField()
 
     class Meta:
         model = Document
@@ -34,6 +35,11 @@ class DocumentSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class DocumentUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    notes = serializers.CharField(required=False, allow_blank=True)
 
 
 class DocumentChunkSerializer(serializers.ModelSerializer):

@@ -1,6 +1,7 @@
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,6 +13,7 @@ from apps.ai_assistant.services import DocumentProcessingService, FaissStoreServ
 from .serializers import (
     DocumentChunkSerializer,
     DocumentSerializer,
+    DocumentUploadSerializer,
     SemanticSearchRequestSerializer,
     SemanticSearchResultSerializer,
 )
@@ -32,6 +34,10 @@ from .serializers import (
         summary="Upload AI document",
         description="Upload a PDF or DOCX document. No AI processing is performed in this phase.",
         tags=["AI Assistant"],
+        request={
+            "multipart/form-data": DocumentUploadSerializer,
+        },
+        responses={201: DocumentSerializer},
     ),
 )
 class DocumentViewSet(
@@ -42,6 +48,7 @@ class DocumentViewSet(
 ):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
         user = self.request.user
