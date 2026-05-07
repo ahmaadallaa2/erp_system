@@ -50,3 +50,13 @@ class DocumentChunkSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+
+class SemanticSearchRequestSerializer(serializers.Serializer):
+    query = serializers.CharField()
+    top_k = serializers.IntegerField(required=False, min_value=1, max_value=20, default=5)
+
+
+class SemanticSearchResultSerializer(serializers.Serializer):
+    score = serializers.FloatField()
+    chunk = DocumentChunkSerializer()

@@ -134,6 +134,12 @@ class DocumentChunk(models.Model):
     )
     char_start = models.PositiveIntegerField(_("Character start"), default=0)
     char_end = models.PositiveIntegerField(_("Character end"), default=0)
+    embedding = models.JSONField(_("Embedding"), null=True, blank=True)
+    embedding_model = models.CharField(
+        _("Embedding model"),
+        max_length=100,
+        blank=True,
+    )
     created_at = models.DateTimeField(_("Created at"), auto_now_add=True)
 
     class Meta:
@@ -149,6 +155,7 @@ class DocumentChunk(models.Model):
         indexes = [
             models.Index(fields=["company", "document"]),
             models.Index(fields=["document", "chunk_index"]),
+            models.Index(fields=["embedding_model"]),
         ]
 
     def __str__(self):

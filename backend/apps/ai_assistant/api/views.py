@@ -8,8 +8,13 @@ from rest_framework import status
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.ai_assistant.models import Document
-from apps.ai_assistant.services import DocumentProcessingService
-from .serializers import DocumentChunkSerializer, DocumentSerializer
+from apps.ai_assistant.services import DocumentProcessingService, FaissStoreService
+from .serializers import (
+    DocumentChunkSerializer,
+    DocumentSerializer,
+    SemanticSearchRequestSerializer,
+    SemanticSearchResultSerializer,
+)
 
 
 @extend_schema_view(
@@ -87,3 +92,28 @@ class DocumentViewSet(
         queryset = document.chunks.order_by("chunk_index")
         serializer = DocumentChunkSerializer(queryset, many=True)
         return Response(serializer.data)
+
+    @extend_schema(
+        summary="Semantic search AI document",
+        description="Search extracted document chunks semantically using a local FAISS index. No chat or Q&A is performed.",
+        tags=["AI Assistant"],
+        request=SemanticSearchRequestSerializer,
+        responses={200: SemanticSearchResultSerializer(many=True)},
+    )
+    @action(detail=True, methods=["post"], url_path="search")
+    def search(self, request, pk=None):
+        document = self.get_object()
+        serializer = SemanticSearchRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            results = FaissStoreService.search_document(
+                document=document,
+                query=serializer.validated_data["query"],
+                top_k=serializer.validated_data["top_k"],
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise ValidationError(str(exc))
+
+        response_serializer = SemanticSearchResultSerializer(results, many=True)
+        return Response(response_serializer.data)
