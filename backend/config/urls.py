@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.conf import settings
+from django.conf.urls.static import static
 from django.urls import path, include
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -14,6 +16,7 @@ urlpatterns = [
     path("api/inventory/", include("apps.inventory.api.urls")),
     path("api/sales/", include("apps.sales.api.urls")),
     path("api/purchases/", include("apps.purchases.api.urls")),
+    path("api/ai-assistant/", include("apps.ai_assistant.api.urls")),
 
     # OpenAPI schema
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
@@ -33,3 +36,6 @@ urlpatterns = [
     ),
     
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

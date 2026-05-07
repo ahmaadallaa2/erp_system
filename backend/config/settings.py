@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'apps.purchases',
     'apps.accounting',
     'apps.sales',
+    'apps.ai_assistant',
 ]
 
 # -----------------------------------------------------------------------------
@@ -152,6 +153,9 @@ USE_TZ = True
 # -----------------------------------------------------------------------------
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # -----------------------------------------------------------------------------
 # CORS
