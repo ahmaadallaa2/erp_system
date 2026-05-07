@@ -1,7 +1,7 @@
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,8 +9,10 @@ from rest_framework import status
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.ai_assistant.models import Document
-from apps.ai_assistant.services import DocumentProcessingService, FaissStoreService
+from apps.ai_assistant.services import DocumentProcessingService, FaissStoreService, QAService
 from .serializers import (
+    AskDocumentRequestSerializer,
+    AskDocumentResponseSerializer,
     DocumentChunkSerializer,
     DocumentSerializer,
     DocumentUploadSerializer,
@@ -49,6 +51,13 @@ class DocumentViewSet(
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+
+    def get_parser_classes(self):
+        if self.action == "create":
+            return [MultiPartParser, FormParser]
+        if self.action == "ask":
+            return [JSONParser]
+        return [JSONParser]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -145,4 +154,29 @@ class DocumentViewSet(
             raise ValidationError(str(exc))
 
         response_serializer = SemanticSearchResultSerializer(results, many=True)
+        return Response(response_serializer.data)
+
+    @extend_schema(
+        summary="Ask AI document",
+        description="Answer a question using retrieved document chunks and Ollama llama3. No ERP core data is modified.",
+        tags=["AI Assistant"],
+        request=AskDocumentRequestSerializer,
+        responses={200: AskDocumentResponseSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="ask")
+    def ask(self, request, pk=None):
+        document = self.get_object()
+        serializer = AskDocumentRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            result = QAService.answer_question(
+                document=document,
+                question=serializer.validated_data["question"],
+                top_k=serializer.validated_data["top_k"],
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise ValidationError(str(exc))
+
+        response_serializer = AskDocumentResponseSerializer(result)
         return Response(response_serializer.data)

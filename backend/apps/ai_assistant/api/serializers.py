@@ -76,3 +76,21 @@ class SemanticSearchRequestSerializer(serializers.Serializer):
 class SemanticSearchResultSerializer(serializers.Serializer):
     score = serializers.FloatField()
     chunk = DocumentChunkSerializer()
+
+
+class AskDocumentRequestSerializer(serializers.Serializer):
+    question = serializers.CharField()
+    top_k = serializers.IntegerField(required=False, min_value=1, max_value=20, default=5)
+
+
+class AskDocumentCitationSerializer(serializers.Serializer):
+    chunk_id = serializers.CharField()
+    chunk_index = serializers.IntegerField()
+    page_number = serializers.IntegerField(allow_null=True)
+    text = serializers.CharField()
+    score = serializers.FloatField()
+
+
+class AskDocumentResponseSerializer(serializers.Serializer):
+    answer = serializers.CharField()
+    citations = AskDocumentCitationSerializer(many=True)
