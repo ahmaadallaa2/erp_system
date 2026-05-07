@@ -62,6 +62,13 @@ function Sidebar({ isOpen }: SidebarProps) {
             Purchase Invoices
           </Link>
 
+          <Link
+            to="/ai-assistant"
+            style={getLinkStyle(location.pathname === "/ai-assistant")}
+          >
+            AI Assistant
+          </Link>
+
           <button
             type="button"
             onClick={() => setInventoryOpen((prev) => !prev)}

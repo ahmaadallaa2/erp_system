@@ -2,7 +2,7 @@ import axios from "axios";
 import { useAuthStore } from "../../app/store/auth-store";
 
 export const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api",
+  baseURL: "http://127.0.0.1:9000/api",
 });
 
 api.interceptors.request.use((config) => {
