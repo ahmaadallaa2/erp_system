@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
 from django.db.models import Sum
@@ -52,7 +52,6 @@ class StockService:
                 balance.quantity += quantity
                 balance.save(update_fields=['quantity', 'updated_at'])
 
-                # تحديث متوسط التكلفة
                 if unit_cost > 0:
                     StockService._update_average_cost_on_in(product, quantity, unit_cost)
 
@@ -163,10 +162,14 @@ class StockService:
         old_avg_cost = product.average_cost or Decimal("0.00")
 
         if total_qty <= 0:
-            product.average_cost = incoming_unit_cost
+            new_avg_cost = incoming_unit_cost
         else:
             old_total_value = old_total_qty * old_avg_cost
             new_total_value = incoming_qty * incoming_unit_cost
-            product.average_cost = (old_total_value + new_total_value) / total_qty
+            new_avg_cost = (old_total_value + new_total_value) / total_qty
 
+        product.average_cost = new_avg_cost.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP
+        )
         product.save(update_fields=['average_cost', 'updated_at'])

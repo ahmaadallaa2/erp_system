@@ -1,0 +1,21 @@
+export type Product = {
+  id: string;
+  company: string;
+  category: string | null;
+  unit: string;
+  name: string;
+  sku: string;
+  barcode: string | null;
+  product_type: string;
+  image: string | null;
+  description: string | null;
+  cost_price: string;
+  average_cost: string;
+  sale_price: string;
+  reorder_point: string;
+  income_account: string | null;
+  expense_account: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};

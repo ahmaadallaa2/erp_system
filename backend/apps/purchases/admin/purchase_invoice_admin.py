@@ -73,6 +73,7 @@ class PurchaseInvoiceAdmin(ModelAdmin):
 
     readonly_fields = (
         'invoice_number',
+        'status',
         'total_amount',
         'created_at',
         'updated_at',
@@ -88,7 +89,8 @@ class PurchaseInvoiceAdmin(ModelAdmin):
                 'company',
                 ('invoice_number', 'invoice_date'),
                 ('branch', 'warehouse'),
-                ('supplier', 'status'),
+                'supplier',
+                'status',
             )
         }),
         ('التكلفة الشاملة للمشتريات', {

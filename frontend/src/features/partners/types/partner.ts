@@ -1,0 +1,23 @@
+export type Partner = {
+  id: string;
+  company: string;
+  code: string;
+  partner_type: "customer" | "supplier";
+  name: string;
+  phone: string | null;
+  mobile: string | null;
+  email: string | null;
+  website: string | null;
+  address: string;
+  city: string | null;
+  tax_number: string | null;
+  commercial_record: string | null;
+  credit_limit: string;
+  initial_balance: string;
+  current_balance: string;
+  is_active: boolean;
+  notes: string | null;
+  responsible: string | null;
+  created_at: string;
+  updated_at: string;
+};
