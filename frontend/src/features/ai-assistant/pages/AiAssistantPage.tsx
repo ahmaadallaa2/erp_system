@@ -7,6 +7,15 @@ import { processAiDocument } from "../api/process-document";
 import { uploadAiDocument } from "../api/upload-document";
 import type { AiDocument, AskResponse } from "../types/ai-document";
 
+const EXAMPLE_QUESTIONS = [
+  "What is this contract about?",
+  "What are the payment terms?",
+  "Who are the parties involved?",
+  "What happens if one party breaches the agreement?",
+  "Summarize this contract in simple terms.",
+  "List the important clauses in this agreement.",
+];
+
 function AiAssistantPage() {
   const [documents, setDocuments] = useState<AiDocument[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState("");
@@ -238,6 +247,23 @@ function AiAssistantPage() {
         <div style={{ marginBottom: "12px", color: "#555" }}>
           Selected: {selectedDocument?.original_filename || "No document selected"}
         </div>
+
+        <div style={examplesContainerStyle}>
+          <div style={examplesTitleStyle}>Example Questions</div>
+          <div style={chipsStyle}>
+            {EXAMPLE_QUESTIONS.map((example) => (
+              <button
+                key={example}
+                onClick={() => setQuestion(example)}
+                style={chipButtonStyle}
+                type="button"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <textarea
           onChange={(event) => setQuestion(event.target.value)}
           placeholder="Ask a question about the selected document"
@@ -395,6 +421,37 @@ const textareaStyle: React.CSSProperties = {
   padding: "10px",
   resize: "vertical",
   width: "100%",
+};
+
+const examplesContainerStyle: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: "8px",
+  marginBottom: "12px",
+  padding: "12px",
+};
+
+const examplesTitleStyle: React.CSSProperties = {
+  color: "#475569",
+  fontSize: "13px",
+  fontWeight: 700,
+  marginBottom: "8px",
+};
+
+const chipsStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+};
+
+const chipButtonStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #cbd5e1",
+  borderRadius: "999px",
+  color: "#0f172a",
+  cursor: "pointer",
+  fontSize: "13px",
+  padding: "7px 10px",
 };
 
 const answerStyle: React.CSSProperties = {
