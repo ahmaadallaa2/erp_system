@@ -50,12 +50,33 @@ class DocumentViewSet(
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
+    def get_serializer_class(self):
+        if self.action == "create":
+            return DocumentUploadSerializer
+        return DocumentSerializer
+
     def get_queryset(self):
         user = self.request.user
         return Document.objects.filter(
             is_deleted=False,
             company=user.company,
         ).order_by("-created_at")
+
+    def create(self, request, *args, **kwargs):
+        if not request.user.company:
+            raise ValidationError("Authenticated user is not assigned to a company.")
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = serializer.save(
+            company=request.user.company,
+            uploaded_by=request.user,
+        )
+        response_serializer = DocumentSerializer(
+            document,
+            context=self.get_serializer_context(),
+        )
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -72,6 +93,7 @@ class DocumentViewSet(
         summary="Process AI document",
         description="Extract text from a PDF/DOCX document and store text chunks. No embeddings are created.",
         tags=["AI Assistant"],
+        request=None,
         responses={200: DocumentSerializer},
     )
     @action(detail=True, methods=["post"], url_path="process")

@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
+from drf_spectacular.utils import OpenApiTypes, extend_schema_field
+
 from apps.ai_assistant.models import Document, DocumentChunk
+
+
+@extend_schema_field(OpenApiTypes.BINARY)
+class BinaryFileField(serializers.FileField):
+    pass
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -38,8 +45,11 @@ class DocumentSerializer(serializers.ModelSerializer):
 
 
 class DocumentUploadSerializer(serializers.Serializer):
-    file = serializers.FileField()
+    file = BinaryFileField(write_only=True)
     notes = serializers.CharField(required=False, allow_blank=True)
+
+    def create(self, validated_data):
+        return Document.objects.create(**validated_data)
 
 
 class DocumentChunkSerializer(serializers.ModelSerializer):
