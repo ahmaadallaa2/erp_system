@@ -1,60 +1,27 @@
 import { useEffect, useState } from "react";
 import { theme } from "../../../styles/theme";
 import DashboardCard from "../../../components/dashboard-card";
-import { listPartners } from "../../partners/api/list-partners";
-import { listProducts } from "../../products/api/list-products";
-import { listWarehouses } from "../../warehouses/api/list-warehouses";
-import { listStockTransactions } from "../../stock-transactions/api/list-stock-transactions";
-import { listStockBalances } from "../../stock-balances/api/list-stock-balances";
-import { listSalesInvoices } from "../../sales-invoices/api/list-sales-invoices";
-import { listPurchaseInvoices } from "../../purchase-invoices/api/list-purchase-invoices";
+import { getDashboardSummary } from "../api/dashboard-api";
+import type { DashboardSummary } from "../api/dashboard-api";
 
 function DashboardPage() {
-  const [partnersCount, setPartnersCount] = useState<string>("...");
-  const [productsCount, setProductsCount] = useState<string>("...");
-  const [warehousesCount, setWarehousesCount] = useState<string>("...");
-  const [stockTransactionsCount, setStockTransactionsCount] = useState<string>("...");
-  const [stockBalancesCount, setStockBalancesCount] = useState<string>("...");
-  const [salesCount, setSalesCount] = useState<string>("...");
-  const [purchasesCount, setPurchasesCount] = useState<string>("...");
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadStats() {
-      try {
-        const [
-          partners,
-          products,
-          warehouses,
-          stockTransactions,
-          stockBalances,
-          salesInvoices,
-          purchaseInvoices,
-        ] = await Promise.all([
-          listPartners(),
-          listProducts(),
-          listWarehouses(),
-          listStockTransactions(),
-          listStockBalances(),
-          listSalesInvoices(),
-          listPurchaseInvoices(),
-        ]);
+      setIsLoading(true);
+      setError(null);
 
-        setPartnersCount(partners.length.toString());
-        setProductsCount(products.length.toString());
-        setWarehousesCount(warehouses.length.toString());
-        setStockTransactionsCount(stockTransactions.length.toString());
-        setStockBalancesCount(stockBalances.length.toString());
-        setSalesCount(salesInvoices.length.toString());
-        setPurchasesCount(purchaseInvoices.length.toString());
+      try {
+        const data = await getDashboardSummary();
+        setSummary(data);
       } catch (err) {
         console.error("Dashboard error:", err);
-        setPartnersCount("--");
-        setProductsCount("--");
-        setWarehousesCount("--");
-        setStockTransactionsCount("--");
-        setStockBalancesCount("--");
-        setSalesCount("--");
-        setPurchasesCount("--");
+        setError("Unable to load dashboard summary.");
+      } finally {
+        setIsLoading(false);
       }
     }
 
@@ -68,51 +35,65 @@ function DashboardPage() {
         <p style={subtitleStyle}>Overview of your system.</p>
       </div>
 
+      {error && <p style={errorStyle}>{error}</p>}
+
       <div style={gridStyle}>
         <DashboardCard
-          title="Partners"
-          value={partnersCount}
-          subtitle="Customers & Suppliers"
+          title="Total Sales"
+          value={formatMetric(summary?.total_sales, isLoading)}
+          subtitle="Posted sales invoices"
         />
 
         <DashboardCard
-          title="Products"
-          value={productsCount}
-          subtitle="Inventory items"
+          title="Total Purchases"
+          value={formatMetric(summary?.total_purchases, isLoading)}
+          subtitle="Posted purchase invoices"
         />
 
         <DashboardCard
-          title="Warehouses"
-          value={warehousesCount}
-          subtitle="Storage locations"
+          title="Inventory Items"
+          value={formatMetric(summary?.inventory_items, isLoading)}
+          subtitle="Products with stock balances"
         />
 
         <DashboardCard
-          title="Stock Transactions"
-          value={stockTransactionsCount}
-          subtitle="Inventory documents"
+          title="Inventory Quantity"
+          value={formatMetric(summary?.inventory_quantity, isLoading)}
+          subtitle="Current stock quantity"
         />
 
         <DashboardCard
-          title="Stock Balances"
-          value={stockBalancesCount}
-          subtitle="Current stock rows"
+          title="Customers Receivable"
+          value={formatMetric(summary?.customers_receivable, isLoading)}
+          subtitle="Sales minus inbound payments"
         />
 
         <DashboardCard
-          title="Sales"
-          value={salesCount}
-          subtitle="Sales invoices"
+          title="Suppliers Payable"
+          value={formatMetric(summary?.suppliers_payable, isLoading)}
+          subtitle="Purchases minus outbound payments"
         />
 
         <DashboardCard
-          title="Purchases"
-          value={purchasesCount}
-          subtitle="Purchase invoices"
+          title="Low Stock Products"
+          value={formatMetric(summary?.low_stock_products, isLoading)}
+          subtitle="Rows at or below reorder point"
         />
       </div>
     </main>
   );
+}
+
+function formatMetric(value: number | string | undefined, isLoading: boolean) {
+  if (isLoading) {
+    return "...";
+  }
+
+  if (value === undefined || value === null || value === "") {
+    return "0";
+  }
+
+  return String(value);
 }
 
 const pageStyle: React.CSSProperties = {
@@ -132,6 +113,11 @@ const titleStyle: React.CSSProperties = {
 const subtitleStyle: React.CSSProperties = {
   marginTop: "8px",
   color: theme.colors.textSecondary,
+};
+
+const errorStyle: React.CSSProperties = {
+  margin: "0 0 16px",
+  color: theme.colors.danger,
 };
 
 const gridStyle: React.CSSProperties = {

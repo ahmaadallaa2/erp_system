@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from .base import SoftDeleteModel
+from apps.core.models.base import SoftDeleteModel
 
 
 class FiscalYear(SoftDeleteModel):

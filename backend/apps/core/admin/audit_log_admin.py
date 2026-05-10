@@ -4,7 +4,7 @@ from django.urls import NoReverseMatch, reverse
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
 
-from ..models import AuditLog
+from apps.core.models import AuditLog
 
 
 @admin.register(AuditLog)

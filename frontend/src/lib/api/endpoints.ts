@@ -2,6 +2,9 @@ export const API_ENDPOINTS = {
   auth: {
     login: "/auth/login/",
   },
+  dashboard: {
+    summary: "/dashboard/summary/",
+  },
   partners: {
     list: "/partners/partners/",
     customers: "/partners/partners/customers/",

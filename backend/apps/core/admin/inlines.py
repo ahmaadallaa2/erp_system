@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.admin import GenericTabularInline
 from unfold.admin import TabularInline
-from ..models import Attachment, Branch
+from apps.core.models import Attachment, Branch
 
 
 class AttachmentInline(GenericTabularInline):

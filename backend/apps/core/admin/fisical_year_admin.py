@@ -1,6 +1,6 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from ..models import FiscalYear
+from apps.core.models import FiscalYear
 
 
 @admin.register(FiscalYear)

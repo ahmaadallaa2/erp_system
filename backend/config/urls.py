@@ -11,11 +11,13 @@ from drf_spectacular.views import (
 urlpatterns = [
     path("admin/", admin.site.urls),
 
+    path("api/", include("apps.core.api.urls")),
     path("api/auth/", include("apps.users.api.urls")),
     path("api/partners/", include("apps.partners.api.urls")),
     path("api/inventory/", include("apps.inventory.api.urls")),
     path("api/sales/", include("apps.sales.api.urls")),
     path("api/purchases/", include("apps.purchases.api.urls")),
+    path("api/accounting/", include("apps.accounting.api.urls")),
     path("api/ai-assistant/", include("apps.ai_assistant.api.urls")),
 
     # OpenAPI schema

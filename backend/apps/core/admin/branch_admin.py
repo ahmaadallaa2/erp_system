@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from ..models import Branch
-from .inlines import AttachmentInline
+from apps.core.admin.inlines import AttachmentInline
+from apps.core.models import Branch
 
 
 @admin.register(Branch)

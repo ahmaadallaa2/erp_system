@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from ..models import Company
-from .inlines import BranchInline, AttachmentInline
+from apps.core.admin.inlines import AttachmentInline, BranchInline
+from apps.core.models import Company
 
 
 @admin.register(Company)

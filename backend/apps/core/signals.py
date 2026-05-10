@@ -1,6 +1,6 @@
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
-from .models import Attachment
+from apps.core.models import Attachment
 
 # --- مراقبة الحذف (لتنظيف مساحة السيرفر) ---
 @receiver(post_delete, sender=Attachment)

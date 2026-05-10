@@ -1,6 +1,6 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
-from ..models import Attachment
+from apps.core.models import Attachment
 
 
 @admin.register(Attachment)

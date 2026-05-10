@@ -2,8 +2,8 @@ from django.db import models
 from django.db.models import Q # ضروري من أجل الـ Constraints
 from django.utils.translation import gettext_lazy as _
 
-from .base import SoftDeleteModel
-from .sequences import Sequence
+from apps.core.models.base import SoftDeleteModel
+from apps.core.models.sequences import Sequence
 
 class Company(SoftDeleteModel):
     """
