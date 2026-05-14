@@ -1,3 +1,6 @@
+import re
+
+from django.db.models import Q
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -16,6 +19,8 @@ from .serializers import (
     DocumentChunkSerializer,
     DocumentSerializer,
     DocumentUploadSerializer,
+    KeywordSearchRequestSerializer,
+    KeywordSearchResultSerializer,
     SemanticSearchRequestSerializer,
     SemanticSearchResultSerializer,
 )
@@ -178,6 +183,62 @@ class DocumentViewSet(
             raise ValidationError(str(exc))
 
         response_serializer = SemanticSearchResultSerializer(results, many=True)
+        return Response(response_serializer.data)
+
+    @extend_schema(
+        summary="Keyword search AI document",
+        description="Search extracted document chunks with case-insensitive keyword matching.",
+        tags=["AI Assistant"],
+        request=KeywordSearchRequestSerializer,
+        responses={200: KeywordSearchResultSerializer(many=True)},
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="keyword-search",
+        parser_classes=[JSONParser],
+    )
+    def keyword_search(self, request, pk=None):
+        document = self.get_object()
+        serializer = KeywordSearchRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        query = serializer.validated_data["query"]
+        top_k = serializer.validated_data["top_k"]
+        terms = re.findall(r"\w+", query.lower())
+
+        if not terms:
+            return Response([])
+
+        text_filter = Q()
+        for term in terms:
+            text_filter |= Q(text__icontains=term)
+
+        chunks = document.chunks.filter(
+            text_filter,
+            company=request.user.company,
+        ).order_by("chunk_index")
+
+        results = []
+        for chunk in chunks:
+            text_lower = chunk.text.lower()
+            score = sum(text_lower.count(term) for term in terms)
+            if score <= 0:
+                continue
+
+            results.append(
+                {
+                    "chunk_id": str(chunk.id),
+                    "chunk_index": chunk.chunk_index,
+                    "page_number": chunk.page_number,
+                    "text": chunk.text,
+                    "score": float(score),
+                    "method": "keyword",
+                }
+            )
+
+        results.sort(key=lambda result: (-result["score"], result["chunk_index"]))
+        response_serializer = KeywordSearchResultSerializer(results[:top_k], many=True)
         return Response(response_serializer.data)
 
     @extend_schema(

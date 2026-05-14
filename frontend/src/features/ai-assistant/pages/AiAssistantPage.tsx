@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { askAiDocument } from "../api/ask-document";
+import {
+  keywordSearchDocument,
+  semanticSearchDocument,
+} from "../api/compare-retrieval";
 import { deleteAiDocument } from "../api/delete-document";
 import { listAiDocuments } from "../api/list-documents";
 import { processAiDocument } from "../api/process-document";
 import { uploadAiDocument } from "../api/upload-document";
-import type { AiDocument, AskResponse } from "../types/ai-document";
+import type {
+  AiDocument,
+  AskResponse,
+  RetrievalComparisonResult,
+} from "../types/ai-document";
 
 const EXAMPLE_QUESTIONS = [
   "What is this contract about?",
@@ -22,6 +30,11 @@ function AiAssistantPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<AskResponse | null>(null);
+  const [comparisonDocumentId, setComparisonDocumentId] = useState("");
+  const [comparisonQuery, setComparisonQuery] = useState("");
+  const [keywordResults, setKeywordResults] = useState<RetrievalComparisonResult[]>([]);
+  const [semanticResults, setSemanticResults] = useState<RetrievalComparisonResult[]>([]);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [busyDocumentId, setBusyDocumentId] = useState("");
   const [error, setError] = useState("");
@@ -31,9 +44,23 @@ function AiAssistantPage() {
     [documents, selectedDocumentId]
   );
 
+  const processedDocuments = useMemo(
+    () => documents.filter((document) => document.status === "ready"),
+    [documents]
+  );
+
   useEffect(() => {
     loadDocuments();
   }, []);
+
+  useEffect(() => {
+    if (
+      processedDocuments.length > 0 &&
+      !processedDocuments.some((document) => document.id === comparisonDocumentId)
+    ) {
+      setComparisonDocumentId(processedDocuments[0].id);
+    }
+  }, [comparisonDocumentId, processedDocuments]);
 
   async function loadDocuments() {
     try {
@@ -115,6 +142,12 @@ function AiAssistantPage() {
         setSelectedDocumentId("");
         setAnswer(null);
       }
+
+      if (comparisonDocumentId === document.id) {
+        setComparisonDocumentId("");
+        setKeywordResults([]);
+        setSemanticResults([]);
+      }
     } catch (err) {
       const backendError = getBackendErrorMessage(err);
       console.error("AI document delete error:", {
@@ -124,6 +157,42 @@ function AiAssistantPage() {
       setError(backendError || "Failed to delete document.");
     } finally {
       setBusyDocumentId("");
+    }
+  }
+
+  async function handleCompareRetrieval() {
+    if (!comparisonDocumentId) {
+      setError("Select a processed document first.");
+      return;
+    }
+
+    if (!comparisonQuery.trim()) {
+      setError("Type a comparison query first.");
+      return;
+    }
+
+    try {
+      setComparisonLoading(true);
+      setError("");
+      setKeywordResults([]);
+      setSemanticResults([]);
+
+      const [keyword, semantic] = await Promise.all([
+        keywordSearchDocument(comparisonDocumentId, comparisonQuery.trim(), 5),
+        semanticSearchDocument(comparisonDocumentId, comparisonQuery.trim(), 5),
+      ]);
+
+      setKeywordResults(keyword);
+      setSemanticResults(semantic);
+    } catch (err) {
+      const backendError = getBackendErrorMessage(err);
+      console.error("AI retrieval comparison error:", {
+        error: err,
+        backendResponse: axios.isAxiosError(err) ? err.response?.data : null,
+      });
+      setError(backendError || "Failed to compare retrieval results.");
+    } finally {
+      setComparisonLoading(false);
     }
   }
 
@@ -276,6 +345,52 @@ function AiAssistantPage() {
         </button>
       </section>
 
+      <section style={panelStyle}>
+        <h2 style={sectionTitleStyle}>Retrieval Comparison</h2>
+        <div style={comparisonControlsStyle}>
+          <select
+            disabled={processedDocuments.length === 0 || comparisonLoading}
+            onChange={(event) => {
+              setComparisonDocumentId(event.target.value);
+              setKeywordResults([]);
+              setSemanticResults([]);
+            }}
+            style={selectStyle}
+            value={comparisonDocumentId}
+          >
+            {processedDocuments.length === 0 && (
+              <option value="">No processed documents</option>
+            )}
+            {processedDocuments.map((document) => (
+              <option key={document.id} value={document.id}>
+                {document.original_filename || "Untitled document"}
+              </option>
+            ))}
+          </select>
+          <input
+            disabled={comparisonLoading}
+            onChange={(event) => setComparisonQuery(event.target.value)}
+            placeholder="Search query"
+            style={comparisonInputStyle}
+            type="text"
+            value={comparisonQuery}
+          />
+          <button
+            disabled={comparisonLoading || processedDocuments.length === 0}
+            onClick={handleCompareRetrieval}
+            style={primaryButtonStyle}
+            type="button"
+          >
+            {comparisonLoading ? "Comparing..." : "Compare Retrieval"}
+          </button>
+        </div>
+
+        <div style={comparisonGridStyle}>
+          <RetrievalResultsColumn title="Keyword Search Results" results={keywordResults} />
+          <RetrievalResultsColumn title="Semantic Search Results" results={semanticResults} />
+        </div>
+      </section>
+
       {answer && (
         <section style={panelStyle}>
           <h2 style={sectionTitleStyle}>Answer</h2>
@@ -298,6 +413,35 @@ function AiAssistantPage() {
       )}
     </main>
   );
+}
+
+type RetrievalResultsColumnProps = {
+  title: string;
+  results: RetrievalComparisonResult[];
+};
+
+function RetrievalResultsColumn({ title, results }: RetrievalResultsColumnProps) {
+  return (
+    <div style={comparisonColumnStyle}>
+      <h3 style={comparisonTitleStyle}>{title}</h3>
+      {results.length === 0 && <p style={emptyResultStyle}>No results yet.</p>}
+      {results.map((result) => (
+        <article key={`${result.method}-${result.chunk_id}`} style={citationStyle}>
+          <div style={citationMetaStyle}>
+            {result.method} | Score {result.score.toFixed(3)} | Chunk{" "}
+            {result.chunk_index}
+            {result.page_number ? ` | Page ${result.page_number}` : ""}
+          </div>
+          <p style={previewTextStyle}>{getTextPreview(result.text)}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function getTextPreview(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  return normalized.length > 280 ? `${normalized.slice(0, 280)}...` : normalized;
 }
 
 function getBackendErrorMessage(error: unknown) {
@@ -423,6 +567,51 @@ const textareaStyle: React.CSSProperties = {
   width: "100%",
 };
 
+const selectStyle: React.CSSProperties = {
+  border: "1px solid #cbd5e1",
+  borderRadius: "8px",
+  minWidth: "220px",
+  padding: "10px",
+};
+
+const comparisonControlsStyle: React.CSSProperties = {
+  alignItems: "center",
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "10px",
+  marginBottom: "14px",
+};
+
+const comparisonInputStyle: React.CSSProperties = {
+  border: "1px solid #cbd5e1",
+  borderRadius: "8px",
+  flex: "1 1 260px",
+  padding: "10px",
+};
+
+const comparisonGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "12px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+};
+
+const comparisonColumnStyle: React.CSSProperties = {
+  border: "1px solid #e2e8f0",
+  borderRadius: "8px",
+  padding: "12px",
+};
+
+const comparisonTitleStyle: React.CSSProperties = {
+  fontSize: "15px",
+  margin: "0 0 10px",
+};
+
+const emptyResultStyle: React.CSSProperties = {
+  color: "#64748b",
+  fontSize: "14px",
+  margin: 0,
+};
+
 const examplesContainerStyle: React.CSSProperties = {
   background: "#f8fafc",
   border: "1px solid #e2e8f0",
@@ -478,6 +667,11 @@ const citationMetaStyle: React.CSSProperties = {
   fontSize: "13px",
   fontWeight: 700,
   marginBottom: "8px",
+};
+
+const previewTextStyle: React.CSSProperties = {
+  lineHeight: 1.5,
+  margin: 0,
 };
 
 export default AiAssistantPage;
