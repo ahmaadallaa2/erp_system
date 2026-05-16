@@ -4,9 +4,11 @@ import Navbar from "../../components/layout/navbar";
 import Sidebar from "../../components/layout/sidebar";
 import Footer from "../../components/layout/footer";
 import { theme } from "../../styles/theme";
+import { useAutoLogout } from "../../hooks/useAutoLogout";
 
 function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  useAutoLogout();
 
   const handleToggleSidebar = () => {
     setSidebarOpen((prev) => !prev);
