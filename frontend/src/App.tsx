@@ -16,6 +16,7 @@ import SalesInvoicesPage from "./features/sales-invoices/pages/SalesInvoicesPage
 import CreateSalesInvoicePage from "./features/sales-invoices/pages/CreateSalesInvoicePage";
 import SalesInvoiceDetailsPage from "./features/sales-invoices/pages/SalesInvoiceDetailsPage";
 import AiAssistantPage from "./features/ai-assistant/pages/AiAssistantPage";
+import PaymentsPage from "./features/payments/pages/PaymentsPage";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
             <Route path="/sales-invoices" element={<SalesInvoicesPage />} />
             <Route path="/sales-invoices/new" element={<CreateSalesInvoicePage />} />
             <Route path="/sales-invoices/:id" element={<SalesInvoiceDetailsPage />} />
+            <Route path="/payments" element={<PaymentsPage />} />
             <Route path="/ai-assistant" element={<AiAssistantPage />} />
           </Route>
         </Route>

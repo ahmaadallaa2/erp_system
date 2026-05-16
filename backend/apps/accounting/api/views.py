@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -13,9 +14,67 @@ from drf_spectacular.utils import (
     extend_schema_view,
 )
 
+from apps.accounting.models.account import Account
 from apps.accounting.models.payment import Payment
 from apps.accounting.services.payment_service import PaymentService
-from .serializers import PaymentSerializer
+from .serializers import AccountLookupSerializer, PaymentSerializer
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List account lookup options",
+        description=(
+            "Retrieve active postable accounts for the authenticated user's company. "
+            "Supports account_type filtering and simple code/name search."
+        ),
+        tags=["Accounts"],
+        parameters=[
+            OpenApiParameter(
+                name="account_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                enum=["asset", "liability", "equity", "income", "expense"],
+                description="Filter accounts by type.",
+            ),
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Search accounts by code or name.",
+            ),
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve account lookup option",
+        description="Retrieve one active postable account for the authenticated user's company.",
+        tags=["Accounts"],
+    ),
+)
+class AccountLookupViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = AccountLookupSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        qs = Account.objects.filter(
+            is_deleted=False,
+            company=user.company,
+            is_active=True,
+            is_postable=True,
+        ).order_by("code")
+
+        account_type = self.request.query_params.get("account_type")
+        if account_type in ["asset", "liability", "equity", "income", "expense"]:
+            qs = qs.filter(account_type=account_type)
+
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(code__icontains=search) | Q(name__icontains=search))
+
+        return qs
 
 
 @extend_schema_view(

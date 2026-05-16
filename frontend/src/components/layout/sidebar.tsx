@@ -63,6 +63,13 @@ function Sidebar({ isOpen }: SidebarProps) {
           </Link>
 
           <Link
+            to="/payments"
+            style={getLinkStyle(location.pathname === "/payments")}
+          >
+            Payments
+          </Link>
+
+          <Link
             to="/ai-assistant"
             style={getLinkStyle(location.pathname === "/ai-assistant")}
           >

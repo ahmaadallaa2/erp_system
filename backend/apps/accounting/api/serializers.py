@@ -1,6 +1,22 @@
 from rest_framework import serializers
 
+from apps.accounting.models.account import Account
 from apps.accounting.models.payment import Payment
+
+
+class AccountLookupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = [
+            "id",
+            "code",
+            "name",
+            "account_type",
+            "normal_balance",
+            "is_postable",
+            "is_active",
+        ]
+        read_only_fields = fields
 
 
 class PaymentSerializer(serializers.ModelSerializer):

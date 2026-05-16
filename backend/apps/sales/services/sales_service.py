@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.db import transaction
 
+from apps.accounting.services.accounting_service import AccountingService
 from apps.inventory.models import StockTransaction
 from apps.inventory.services.stock_service import StockService
 
@@ -64,7 +65,9 @@ class SalesService:
 
             StockService.post_transaction(stock_tx)
 
+        journal_entry = AccountingService.create_sales_invoice_entry(invoice)
+        invoice.journal_entry = journal_entry
         invoice.status = "posted"
-        invoice.save(update_fields=["status", "updated_at"])
+        invoice.save(update_fields=["journal_entry", "status", "updated_at"])
 
-        return invoice
+        return stock_tx

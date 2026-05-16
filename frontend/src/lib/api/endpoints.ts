@@ -25,4 +25,8 @@ export const API_ENDPOINTS = {
     invoices: "/sales/invoices/",
     invoiceItems: "/sales/invoice-items/",
   },
+  accounting: {
+    payments: "/accounting/payments/",
+    accounts: "/accounting/accounts/",
+  },
 } as const;

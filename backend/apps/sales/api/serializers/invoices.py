@@ -67,6 +67,7 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "date",
             "status",
             "total_amount",
+            "journal_entry",
             "notes",
             "items",
             "created_at",
@@ -79,6 +80,7 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "invoice_number",
             "status",
             "total_amount",
+            "journal_entry",
             "created_at",
             "updated_at",
         ]

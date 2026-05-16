@@ -80,7 +80,7 @@ class AccountingServiceTestCase(TestCase):
         self.expense_purchase = Account.objects.create(
             company=self.company,
             code="5001",
-            name="Purchase Expense",
+            name="Cost of Goods Sold",
             account_type="expense",
             normal_balance="debit",
             is_postable=True,
@@ -131,22 +131,28 @@ class AccountingServiceTestCase(TestCase):
         self.assertEqual(entry.company, self.company)
 
         items = entry.items.order_by("id")
-        self.assertEqual(items.count(), 2)
+        self.assertEqual(items.count(), 4)
 
         total_debit = sum((item.debit for item in items), Decimal("0.00"))
         total_credit = sum((item.credit for item in items), Decimal("0.00"))
 
-        self.assertEqual(total_debit, Decimal("300.00"))
-        self.assertEqual(total_credit, Decimal("300.00"))
+        self.assertEqual(total_debit, Decimal("500.00"))
+        self.assertEqual(total_credit, Decimal("500.00"))
 
         receivable_line = items.filter(account=self.asset_customer).first()
         revenue_line = items.filter(account=self.income_sales).first()
+        cogs_line = items.filter(account=self.expense_purchase).first()
+        inventory_line = items.filter(account=self.asset_inventory).first()
 
         self.assertIsNotNone(receivable_line)
         self.assertIsNotNone(revenue_line)
+        self.assertIsNotNone(cogs_line)
+        self.assertIsNotNone(inventory_line)
         self.assertEqual(receivable_line.partner, self.customer)
         self.assertEqual(receivable_line.debit, Decimal("300.00"))
         self.assertEqual(revenue_line.credit, Decimal("300.00"))
+        self.assertEqual(cogs_line.debit, Decimal("200.00"))
+        self.assertEqual(inventory_line.credit, Decimal("200.00"))
 
     def test_create_purchase_invoice_entry(self):
         invoice = PurchaseInvoice.objects.create(

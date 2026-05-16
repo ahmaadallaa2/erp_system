@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from django.db.models import Sum
 
 from django.db import transaction
@@ -118,7 +118,9 @@ class AccountingService:
     def create_sales_invoice_entry(
         invoice,
         receivable_account_code='1003',
-        revenue_account_code='4001'
+        revenue_account_code='4001',
+        cogs_account_code='5001',
+        inventory_account_code='1004'
     ):
         """
         إنشاء قيد محاسبي لفاتورة مبيعات آجل:
@@ -127,7 +129,7 @@ class AccountingService:
         """
 
         if getattr(invoice, 'journal_entry_id', None):
-            raise ValidationError("يوجد قيد يومية مرتبط بهذه الفاتورة بالفعل.")
+            return invoice.journal_entry
 
         journal = AccountingService._get_or_create_journal(
             company=invoice.company,
@@ -146,10 +148,20 @@ class AccountingService:
 
         receivable_acc = AccountingService._get_account_by_code(invoice.company, receivable_account_code)
         revenue_acc = AccountingService._get_account_by_code(invoice.company, revenue_account_code)
+        cogs_acc = AccountingService._get_account_by_code(invoice.company, cogs_account_code)
+        inventory_acc = AccountingService._get_account_by_code(invoice.company, inventory_account_code)
 
         total_sales_amount = Decimal(invoice.total_amount or Decimal('0.00'))
         if total_sales_amount <= Decimal('0.00'):
             raise ValidationError("لا يمكن إنشاء قيد لفاتورة مبيعات بإجمالي صفر.")
+
+        total_cogs = Decimal('0.00')
+        for item in invoice.items.select_related('product'):
+            if item.product and item.product.product_type != 'service':
+                unit_cost = Decimal(item.product.average_cost or Decimal('0.00'))
+                quantity = Decimal(item.quantity or Decimal('0.00'))
+                total_cogs += quantity * unit_cost
+        total_cogs = total_cogs.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
         entry = JournalEntry.objects.create(
             company=invoice.company,
@@ -176,6 +188,23 @@ class AccountingService:
             debit=Decimal('0.00'),
             credit=total_sales_amount
         )
+
+        if total_cogs > Decimal('0.00'):
+            JournalItem.objects.create(
+                entry=entry,
+                account=cogs_acc,
+                description=f"تكلفة بضاعة مباعة - فاتورة {invoice.invoice_number}",
+                debit=total_cogs,
+                credit=Decimal('0.00')
+            )
+
+            JournalItem.objects.create(
+                entry=entry,
+                account=inventory_acc,
+                description=f"خفض المخزون - فاتورة {invoice.invoice_number}",
+                debit=Decimal('0.00'),
+                credit=total_cogs
+            )
 
         entry.post()
 

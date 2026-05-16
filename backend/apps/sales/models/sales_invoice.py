@@ -73,6 +73,14 @@ class SalesInvoice(SoftDeleteModel):
         editable=False
     )
 
+    journal_entry = models.OneToOneField(
+        "accounting.JournalEntry",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="sales_invoice",
+    )
+
     notes = models.TextField(
         _("ملاحظات"),
         blank=True
