@@ -1,73 +1,246 @@
-# React + TypeScript + Vite
+# ERP Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite frontend for the ERP MVP.
 
-Currently, two official plugins are available:
+## Current Routes
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Public:
 
-## React Compiler
+- `/login`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Protected:
 
-## Expanding the ESLint configuration
+- `/` redirects to `/dashboard`
+- `/dashboard`
+- `/partners`
+- `/products`
+- `/warehouses`
+- `/stock-transactions`
+- `/stock-balances`
+- `/stock-movements`
+- `/purchase-invoices`
+- `/purchase-invoices/new`
+- `/purchase-invoices/:id`
+- `/sales-invoices`
+- `/sales-invoices/new`
+- `/sales-invoices/:id`
+- `/payments`
+- `/ai-assistant`
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Current Feature Coverage
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Implemented:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Login and protected route handling.
+- Authenticated layout with navbar, sidebar, footer, and main content outlet.
+- Dashboard summary page.
+- Partners page.
+- Products page.
+- Warehouses page.
+- Stock transactions, stock balances, and stock movements pages.
+- Purchase invoice list/create/detail/post flow.
+- Sales invoice list/create/detail/post flow.
+- Payments list/create/post flow.
+- AI Assistant page.
+- Shared MVP UI primitives.
+- Auto logout after 30 minutes of inactivity.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Dashboard
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dashboard calls:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `/api/dashboard/summary/`
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+It displays:
+
+- Posted sales total.
+- Posted purchase total.
+- Inventory item count.
+- Inventory quantity.
+- Customers receivable summary.
+- Suppliers payable summary.
+- Low-stock product count.
+
+These values are summary calculations from operational tables. They are not a
+replacement for ledger reports.
+
+## Payments UI
+
+The payments page supports:
+
+- Listing payments.
+- Creating draft payments.
+- Inbound customer receipts.
+- Outbound supplier payments.
+- Cash or bank payment method.
+- Selecting an active postable account from `/api/accounting/accounts/`.
+- Posting draft payments through `/api/accounting/payments/{id}/post/`.
+- Summary cards for received, paid, and draft payment counts.
+
+Current limitation:
+
+- Payments are not allocated to specific invoices. Posting settles AR/AP at
+  partner-account level only.
+
+## Invoice UI
+
+Sales invoices:
+
+- List invoices.
+- Create draft invoice.
+- View details.
+- Add line items while draft.
+- Post draft invoice.
+- Show linked-journal status.
+- Explicitly note that sales invoices are credit-only in the MVP.
+
+Purchase invoices:
+
+- List invoices.
+- Create draft invoice.
+- View details.
+- Add line items while draft.
+- Post draft invoice.
+- Show linked-journal status.
+
+Current invoice limitations:
+
+- No reverse/cancel action.
+- No journal entry viewer.
+- No payment allocation view.
+- No cash-sale mode for sales invoices.
+
+## Auto Logout
+
+`useAutoLogout` is mounted in `AppLayout`.
+
+Behavior:
+
+- Starts only when the user is authenticated.
+- Logs the user out after 30 minutes of inactivity.
+- Resets the timer on mouse movement, keydown, click, scroll, and touch start.
+- Clears auth state, navigates to `/login`, and shows a toast message.
+
+## Shared UI Components
+
+Shared MVP components live in `src/components/ui/mvp.tsx`:
+
+- `PageHeader`
+- `StatusBadge`
+- `LoadingState`
+- `ErrorMessage`
+- `EmptyState`
+- `SectionCard`
+- `MetricCard`
+- `ComparisonBar`
+- `ProgressBar`
+
+Layout components:
+
+- `src/components/layout/navbar.tsx`
+- `src/components/layout/sidebar.tsx`
+- `src/components/layout/footer.tsx`
+- `src/app/layouts/AppLayout.tsx`
+
+## API Client
+
+Endpoint constants are in:
+
+- `src/lib/api/endpoints.ts`
+
+Axios client code is in:
+
+- `src/lib/api/axios.ts`
+
+The frontend currently consumes these API groups:
+
+- Auth.
+- Dashboard.
+- Partners.
+- Inventory.
+- Purchases.
+- Sales.
+- Accounting payments/accounts.
+- AI Assistant feature APIs.
+
+## Implemented
+
+- Authenticated ERP shell.
+- Core operational route set.
+- Dashboard.
+- Inventory inquiry pages.
+- Sales and purchase invoice workflows.
+- Payments UI.
+- AI Assistant page.
+- Auto logout.
+- Shared UI primitives.
+
+## In Progress
+
+- Accounting visibility on source documents.
+- Dashboard and payment UX refinement.
+- Better operational filtering/search.
+
+## Known Limitations
+
+- Reverse workflow missing.
+- Journal viewer missing.
+- Permissions UI is not role-aware.
+- Branch scoping is not visible or consistently enforced in the UI.
+- Inventory valuation reports are missing.
+- Payment allocation is missing.
+- Reports are missing beyond dashboard summary.
+- Sales invoices are credit-only in the MVP.
+
+## Technical Debt
+
+- Styling is inline and MVP-oriented.
+- Some pages use basic tables and local state rather than a shared data-grid or
+  query cache.
+- Error handling is improving but not fully standardized.
+- No full E2E coverage for frontend workflows yet.
+
+## Critical Missing Features
+
+- Journal drill-down pages.
+- Invoice payment allocation UI.
+- Reversal/cancellation UI.
+- Accounting reports.
+- Inventory valuation and stock card reports.
+- Role-based navigation and permissions.
+
+## Roadmap
+
+### Phase 1: Critical Stabilization
+
+- Add UI for reversal/cancel workflows when backend support exists.
+- Add journal drill-down from invoices and payments.
+- Make branch/company context visible.
+- Standardize form validation and API error display.
+
+### Phase 2: Accounting Correctness
+
+- Add payment allocation UI.
+- Add journal entry list/detail pages.
+- Add GL, trial balance, and AR/AP aging views.
+
+### Phase 3: ERP Usability
+
+- Add richer filters, search, pagination, and export flows.
+- Improve invoice and payment forms.
+- Add report navigation and drill-downs.
+- Add audit/approval UX.
+
+### Phase 4: Production Hardening
+
+- Add role-aware navigation and permission handling.
+- Add frontend E2E tests.
+- Add observability-friendly error boundaries.
+- Harden production build/runtime configuration.
+
+## Development
+
+```powershell
+npm install
+npm run dev
 ```
