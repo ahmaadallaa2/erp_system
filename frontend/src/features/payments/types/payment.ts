@@ -10,6 +10,7 @@ export type Payment = {
   status: "draft" | "posted" | "cancelled";
   reference: string;
   notes: string;
+  journal_entry?: string | null;
 };
 
 export type CreatePaymentPayload = {

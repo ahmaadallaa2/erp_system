@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { Link } from "react-router";
 import axios from "axios";
 import { theme } from "../../../styles/theme";
 import { listPartners } from "../../partners/api/list-partners";
@@ -364,6 +365,13 @@ function PaymentsPage() {
                         >
                           {postingId === payment.id ? "Posting..." : "Post"}
                         </button>
+                      ) : payment.journal_entry ? (
+                        <Link
+                          to={`/accounting/journal-entries/${payment.journal_entry}`}
+                          style={secondaryButtonStyle}
+                        >
+                          View Journal Entry
+                        </Link>
                       ) : (
                         <span style={mutedTextStyle}>-</span>
                       )}
@@ -579,6 +587,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   borderRadius: "8px",
   fontWeight: 700,
   cursor: "pointer",
+  textDecoration: "none",
 };
 
 const tableCardStyle: React.CSSProperties = {

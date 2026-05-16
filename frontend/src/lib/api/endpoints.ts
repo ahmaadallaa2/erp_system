@@ -28,5 +28,6 @@ export const API_ENDPOINTS = {
   accounting: {
     payments: "/accounting/payments/",
     accounts: "/accounting/accounts/",
+    journalEntryDetail: (id: string) => `/accounting/journal-entries/${id}/`,
   },
 } as const;

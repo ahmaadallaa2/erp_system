@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { getSalesInvoice } from "../api/get-sales-invoice";
 import { createSalesInvoiceItem } from "../api/create-sales-invoice-item";
 import { postSalesInvoice } from "../api/post-sales-invoice";
@@ -223,6 +223,15 @@ function SalesInvoiceDetailsPage() {
         note="MVP note: sales invoices are treated as credit sales only."
         actions={
           <>
+          {invoice.journal_entry && (
+            <Link
+              to={`/accounting/journal-entries/${invoice.journal_entry}`}
+              style={journalLinkStyle}
+            >
+              View Journal Entry
+            </Link>
+          )}
+
           {!isPosted && (
             <button
               type="button"
@@ -446,6 +455,16 @@ const postButtonStyle: React.CSSProperties = {
   background: "#16a34a",
   color: "#fff",
   fontWeight: 600,
+};
+
+const journalLinkStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: "8px",
+  border: "1px solid #0F766E",
+  background: "#fff",
+  color: "#0F766E",
+  fontWeight: 600,
+  textDecoration: "none",
 };
 
 const errorBoxStyle: React.CSSProperties = {

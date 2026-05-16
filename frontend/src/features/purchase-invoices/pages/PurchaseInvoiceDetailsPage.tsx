@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { getPurchaseInvoice } from "../api/get-purchase-invoice";
 import { createPurchaseInvoiceItem } from "../api/create-purchase-invoice-item";
 import { postPurchaseInvoice } from "../api/post-purchase-invoice";
@@ -222,6 +222,15 @@ function PurchaseInvoiceDetailsPage() {
         subtitle="Purchase invoice details"
         actions={
           <>
+          {invoice.journal_entry && (
+            <Link
+              to={`/accounting/journal-entries/${invoice.journal_entry}`}
+              style={journalLinkStyle}
+            >
+              View Journal Entry
+            </Link>
+          )}
+
           {!isPosted && (
             <button
               type="button"
@@ -455,6 +464,16 @@ const postButtonStyle: React.CSSProperties = {
   background: "#16a34a",
   color: "#fff",
   fontWeight: 600,
+};
+
+const journalLinkStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: "8px",
+  border: "1px solid #0F766E",
+  background: "#fff",
+  color: "#0F766E",
+  fontWeight: 600,
+  textDecoration: "none",
 };
 
 const errorBoxStyle: React.CSSProperties = {
