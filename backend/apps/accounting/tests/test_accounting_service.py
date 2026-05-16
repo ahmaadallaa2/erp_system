@@ -181,27 +181,23 @@ class AccountingServiceTestCase(TestCase):
         self.assertEqual(entry.company, self.company)
 
         items = entry.items.order_by("id")
-        self.assertEqual(items.count(), 3)
+        self.assertEqual(items.count(), 2)
 
         total_debit = sum((item.debit for item in items), Decimal("0.00"))
         total_credit = sum((item.credit for item in items), Decimal("0.00"))
 
         inventory_line = items.filter(account=self.asset_inventory).first()
         payable_line = items.filter(account=self.liability_supplier).first()
-        expense_line = items.filter(account=self.asset_cash).first()
 
         self.assertIsNotNone(inventory_line)
         self.assertIsNotNone(payable_line)
-        self.assertIsNotNone(expense_line)
 
-        # قيمة البضاعة فقط = 200.00
-        # الشحن + التخليص = 30.00
-        # العمولة = 5% من قيمة البضاعة = 10.00
-        # إجمالي تحميل المخزون = 240.00
-        self.assertEqual(total_debit, Decimal("240.00"))
-        self.assertEqual(total_credit, Decimal("240.00"))
+        # Current invoice total includes goods + shipping + clearance.
+        # Commission percentage is stored but not included in total_amount yet.
+        self.assertEqual(invoice.total_amount, Decimal("230.00"))
+        self.assertEqual(total_debit, Decimal("230.00"))
+        self.assertEqual(total_credit, Decimal("230.00"))
 
-        self.assertEqual(inventory_line.debit, Decimal("240.00"))
-        self.assertEqual(payable_line.credit, Decimal("200.00"))
-        self.assertEqual(expense_line.credit, Decimal("40.00"))
+        self.assertEqual(inventory_line.debit, Decimal("230.00"))
+        self.assertEqual(payable_line.credit, Decimal("230.00"))
         self.assertEqual(payable_line.partner, self.supplier)

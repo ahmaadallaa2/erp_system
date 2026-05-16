@@ -69,6 +69,7 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "invoice_date",
             "vendor_bill_number",
             "total_amount",
+            "journal_entry",
             "shipping_cost",
             "clearance_cost",
             "commission_percentage",
@@ -83,6 +84,7 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "invoice_number",
             "status",
             "total_amount",
+            "journal_entry",
             "created_at",
             "updated_at",
         ]

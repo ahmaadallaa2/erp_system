@@ -33,18 +33,16 @@ class AccountingService:
     def create_purchase_invoice_entry(
         invoice,
         inventory_account_code='1004',
-        payable_account_code='2001',
-        expense_payment_account_code='1002'
+        payable_account_code='2001'
     ):
         """
         إنشاء قيد محاسبي لفاتورة مشتريات:
         - مدين: المخزون
         - دائن: المورد
-        - دائن: البنك/الخزينة للمصاريف الإضافية المدفوعة مباشرة
         """
 
         if getattr(invoice, 'journal_entry_id', None):
-            raise ValidationError("يوجد قيد يومية مرتبط بهذه الفاتورة بالفعل.")
+            return invoice.journal_entry
 
         journal = AccountingService._get_or_create_journal(
             company=invoice.company,
@@ -61,18 +59,12 @@ class AccountingService:
         ).exists():
             raise ValidationError("تم إنشاء قيد لهذه الفاتورة مسبقًا.")
 
-        total_goods_value = (invoice.items.aggregate(total=Sum('line_total')).get('total')or Decimal('0.00'))
-        shipping = Decimal(getattr(invoice, 'shipping_cost', Decimal('0.00')) or Decimal('0.00'))
-        clearance = Decimal(getattr(invoice, 'clearance_cost', Decimal('0.00')) or Decimal('0.00'))
-        commission_pct = Decimal(getattr(invoice, 'commission_percentage', Decimal('0.00')) or Decimal('0.00'))
-
-        commission_value = (total_goods_value * commission_pct) / Decimal('100.00')
-        total_expenses = shipping + clearance + commission_value
-        total_inventory_value = total_goods_value + total_expenses
+        total_purchase_amount = Decimal(invoice.total_amount or Decimal('0.00'))
+        if total_purchase_amount <= Decimal('0.00'):
+            raise ValidationError("لا يمكن إنشاء قيد لفاتورة مشتريات بإجمالي صفر.")
 
         inventory_acc = AccountingService._get_account_by_code(invoice.company, inventory_account_code)
         payable_acc = AccountingService._get_account_by_code(invoice.company, payable_account_code)
-        expense_payment_acc = AccountingService._get_account_by_code(invoice.company, expense_payment_account_code)
 
         entry = JournalEntry.objects.create(
             company=invoice.company,
@@ -87,7 +79,7 @@ class AccountingService:
             entry=entry,
             account=inventory_acc,
             description=f"إثبات مخزون من فاتورة مشتريات {invoice.invoice_number}",
-            debit=total_inventory_value,
+            debit=total_purchase_amount,
             credit=Decimal('0.00')
         )
 
@@ -97,17 +89,8 @@ class AccountingService:
             partner=invoice.supplier,
             description=f"استحقاق على المورد - فاتورة {invoice.invoice_number}",
             debit=Decimal('0.00'),
-            credit=total_goods_value
+            credit=total_purchase_amount
         )
-
-        if total_expenses > Decimal('0.00'):
-            JournalItem.objects.create(
-                entry=entry,
-                account=expense_payment_acc,
-                description=f"مصاريف إضافية على فاتورة {invoice.invoice_number}",
-                debit=Decimal('0.00'),
-                credit=total_expenses
-            )
 
         entry.post()
 

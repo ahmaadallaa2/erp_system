@@ -78,6 +78,14 @@ class PurchaseInvoice(SoftDeleteModel):
         editable=False
     )
 
+    journal_entry = models.OneToOneField(
+        "accounting.JournalEntry",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="purchase_invoice",
+    )
+
     shipping_cost = models.DecimalField(
         _("تكلفة الشحن الداخلي"),
         max_digits=10,

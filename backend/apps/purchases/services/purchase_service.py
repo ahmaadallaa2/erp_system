@@ -1,5 +1,6 @@
 from django.db import transaction
 
+from apps.accounting.services.accounting_service import AccountingService
 from apps.inventory.models import StockTransaction
 from apps.inventory.services.stock_service import StockService
 
@@ -56,7 +57,9 @@ class PurchaseService:
         # =====================================
         # 4. تحديث حالة الفاتورة
         # =====================================
+        journal_entry = AccountingService.create_purchase_invoice_entry(invoice)
+        invoice.journal_entry = journal_entry
         invoice.status = 'posted'
-        invoice.save(update_fields=['status', 'updated_at'])
+        invoice.save(update_fields=['journal_entry', 'status', 'updated_at'])
 
         return stock_tx
