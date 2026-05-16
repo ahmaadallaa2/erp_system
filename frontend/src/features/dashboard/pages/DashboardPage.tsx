@@ -194,21 +194,21 @@ function toNumber(value: number | string | undefined | null) {
 }
 
 const pageStyle: React.CSSProperties = {
-  background: theme.colors.background,
+  background: "transparent",
   minHeight: "100%",
 };
 
 const kpiGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-  gap: "16px",
-  marginBottom: "20px",
+  gap: "18px",
+  marginBottom: "22px",
 };
 
 const visualGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-  gap: "20px",
+  gap: "22px",
 };
 
 const inventoryHealthStyle: React.CSSProperties = {

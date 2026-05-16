@@ -82,7 +82,7 @@ export function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section style={sectionCardStyle}>
+    <section className="erp-card-surface" style={sectionCardStyle}>
       {(title || actions) && (
         <div style={sectionHeaderStyle}>
           <div>
@@ -111,7 +111,7 @@ export function MetricCard({
   const palette = badgePalette[tone];
 
   return (
-    <div style={{ ...metricCardStyle, borderTopColor: palette.color }}>
+    <div className="erp-card-surface" style={{ ...metricCardStyle, borderTopColor: palette.color }}>
       <div style={metricTitleStyle}>{title}</div>
       <div style={metricValueStyle}>{value}</div>
       {subtitle && <div style={metricSubtitleStyle}>{subtitle}</div>}
@@ -221,52 +221,54 @@ function getStatusTone(status: string): StatusTone {
 
 const badgePalette = {
   success: {
-    background: "rgba(22, 163, 74, 0.10)",
+    background: "#dcfce7",
     color: "#166534",
-    border: "rgba(22, 163, 74, 0.20)",
+    border: "#bbf7d0",
   },
   warning: {
-    background: "rgba(245, 158, 11, 0.12)",
+    background: "#fef3c7",
     color: "#92400e",
-    border: "rgba(245, 158, 11, 0.22)",
+    border: "#fde68a",
   },
   danger: {
-    background: "rgba(220, 38, 38, 0.10)",
+    background: "#fee2e2",
     color: "#991b1b",
-    border: "rgba(220, 38, 38, 0.20)",
+    border: "#fecaca",
   },
   neutral: {
-    background: "#f3f4f6",
-    color: theme.colors.textSecondary,
-    border: theme.colors.border,
+    background: "#f8fafc",
+    color: "#475569",
+    border: "#e2e8f0",
   },
   info: {
-    background: "rgba(14, 165, 164, 0.10)",
+    background: "#ccfbf1",
     color: theme.colors.primaryDark,
-    border: "rgba(14, 165, 164, 0.20)",
+    border: "#99f6e4",
   },
 };
 
 const pageHeaderStyle: React.CSSProperties = {
-  marginBottom: "24px",
+  marginBottom: "26px",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: "16px",
+  gap: "18px",
   flexWrap: "wrap",
 };
 
 const pageTitleStyle: React.CSSProperties = {
   margin: 0,
   color: theme.colors.textPrimary,
-  fontSize: "28px",
+  fontSize: "27px",
   fontWeight: 800,
+  lineHeight: 1.15,
 };
 
 const pageSubtitleStyle: React.CSSProperties = {
   margin: "8px 0 0",
   color: theme.colors.textSecondary,
   fontSize: "14px",
+  lineHeight: 1.5,
 };
 
 const pageActionsStyle: React.CSSProperties = {
@@ -280,11 +282,11 @@ const noteStyle: React.CSSProperties = {
   marginTop: "12px",
   padding: "10px 12px",
   borderRadius: "8px",
-  border: `1px solid rgba(14, 165, 164, 0.22)`,
-  background: "rgba(14, 165, 164, 0.08)",
+  border: "1px solid #99f6e4",
+  background: "#f0fdfa",
   color: theme.colors.primaryDark,
   fontSize: "13px",
-  fontWeight: 600,
+  fontWeight: 700,
 };
 
 const badgeStyle: React.CSSProperties = {
@@ -292,27 +294,29 @@ const badgeStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   minHeight: "24px",
-  padding: "4px 10px",
+  padding: "4px 9px",
   borderRadius: "999px",
-  fontSize: "12px",
+  fontSize: "11px",
   fontWeight: 800,
+  letterSpacing: "0.2px",
   whiteSpace: "nowrap",
 };
 
 const stateBoxStyle: React.CSSProperties = {
   background: theme.colors.surface,
   border: `1px solid ${theme.colors.border}`,
-  borderRadius: "8px",
-  padding: "18px",
+  borderRadius: "10px",
+  padding: "18px 20px",
   color: theme.colors.textSecondary,
   fontSize: "14px",
+  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.04)",
 };
 
 const errorBoxStyle: React.CSSProperties = {
   marginBottom: "16px",
-  padding: "12px",
-  borderRadius: "8px",
-  border: "1px solid rgba(220, 38, 38, 0.20)",
+  padding: "12px 14px",
+  borderRadius: "10px",
+  border: "1px solid #fecaca",
   background: "#fef2f2",
   color: "#b91c1c",
   fontSize: "14px",
@@ -321,9 +325,9 @@ const errorBoxStyle: React.CSSProperties = {
 
 const emptyStateStyle: React.CSSProperties = {
   background: theme.colors.surface,
-  border: `1px dashed ${theme.colors.border}`,
-  borderRadius: "8px",
-  padding: "30px",
+  border: "1px dashed #cbd5e1",
+  borderRadius: "12px",
+  padding: "32px",
   textAlign: "center",
 };
 
@@ -342,10 +346,10 @@ const emptyTextStyle: React.CSSProperties = {
 const sectionCardStyle: React.CSSProperties = {
   background: theme.colors.surface,
   border: `1px solid ${theme.colors.border}`,
-  borderRadius: "8px",
-  padding: "20px",
-  marginBottom: "20px",
-  boxShadow: "0 10px 28px rgba(15, 23, 42, 0.04)",
+  borderRadius: "12px",
+  padding: "22px",
+  marginBottom: "22px",
+  boxShadow: "0 10px 28px rgba(15, 23, 42, 0.05)",
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -360,6 +364,7 @@ const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
   color: theme.colors.textPrimary,
   fontSize: "18px",
+  fontWeight: 800,
 };
 
 const sectionSubtitleStyle: React.CSSProperties = {
@@ -372,9 +377,9 @@ const metricCardStyle: React.CSSProperties = {
   background: theme.colors.surface,
   border: `1px solid ${theme.colors.border}`,
   borderTop: "4px solid",
-  borderRadius: "8px",
-  padding: "16px",
-  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.04)",
+  borderRadius: "12px",
+  padding: "18px",
+  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
 };
 
 const metricTitleStyle: React.CSSProperties = {
@@ -386,8 +391,9 @@ const metricTitleStyle: React.CSSProperties = {
 const metricValueStyle: React.CSSProperties = {
   marginTop: "8px",
   color: theme.colors.textPrimary,
-  fontSize: "26px",
+  fontSize: "28px",
   fontWeight: 900,
+  lineHeight: 1.1,
   fontVariantNumeric: "tabular-nums",
 };
 
@@ -422,8 +428,8 @@ const barMetaStyle: React.CSSProperties = {
 };
 
 const barTrackStyle: React.CSSProperties = {
-  height: "10px",
-  background: "#eef2f7",
+  height: "9px",
+  background: "#e5edf5",
   borderRadius: "999px",
   overflow: "hidden",
 };

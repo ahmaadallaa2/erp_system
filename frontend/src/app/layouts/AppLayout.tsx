@@ -3,7 +3,6 @@ import { Outlet } from "react-router";
 import Navbar from "../../components/layout/navbar";
 import Sidebar from "../../components/layout/sidebar";
 import Footer from "../../components/layout/footer";
-import { theme } from "../../styles/theme";
 import { useAutoLogout } from "../../hooks/useAutoLogout";
 import { useAuthStore } from "../store/auth-store";
 import { api } from "../../lib/api/axios";
@@ -55,23 +54,25 @@ function AppLayout() {
 
   return (
     <div
+      dir="rtl"
       style={{
         minHeight: "100vh",
-        background: theme.colors.background,
+        background: "#f3f6f8",
         display: "flex",
         flexDirection: "column",
       }}
     >
       <Navbar onToggleSidebar={handleToggleSidebar} />
 
-      <div style={{ display: "flex", flex: 1 }}>
+      <div style={{ display: "flex", flexDirection: "row-reverse", flex: 1, minHeight: 0 }}>
         <Sidebar isOpen={sidebarOpen} />
 
         <main
           style={{
             flex: 1,
-            padding: "24px",
+            padding: "28px",
             minWidth: 0,
+            background: "#f3f6f8",
           }}
         >
           <Outlet />
