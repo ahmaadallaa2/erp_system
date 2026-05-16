@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -15,9 +15,14 @@ from drf_spectacular.utils import (
 )
 
 from apps.accounting.models.account import Account
+from apps.accounting.models.entry import JournalEntry
 from apps.accounting.models.payment import Payment
 from apps.accounting.services.payment_service import PaymentService
-from .serializers import AccountLookupSerializer, PaymentSerializer
+from .serializers import (
+    AccountLookupSerializer,
+    JournalEntryDetailSerializer,
+    PaymentSerializer,
+)
 
 
 @extend_schema_view(
@@ -75,6 +80,34 @@ class AccountLookupViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(Q(code__icontains=search) | Q(name__icontains=search))
 
         return qs
+
+
+@extend_schema_view(
+    retrieve=extend_schema(
+        summary="Retrieve journal entry details",
+        description=(
+            "Retrieve a company-scoped journal entry with its journal metadata "
+            "and debit/credit line items."
+        ),
+        tags=["Journal Entries"],
+        responses={200: JournalEntryDetailSerializer},
+    ),
+)
+class JournalEntryViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    serializer_class = JournalEntryDetailSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        return (
+            JournalEntry.objects.filter(
+                is_deleted=False,
+                company=user.company,
+            )
+            .select_related("journal")
+            .prefetch_related("items__account", "items__partner")
+        )
 
 
 @extend_schema_view(
