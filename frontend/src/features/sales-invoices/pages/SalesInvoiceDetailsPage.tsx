@@ -223,7 +223,7 @@ function SalesInvoiceDetailsPage() {
         note="MVP note: sales invoices are treated as credit sales only."
         actions={
           <>
-          {invoice.journal_entry && (
+          {isPosted && invoice.journal_entry && (
             <Link
               to={`/accounting/journal-entries/${invoice.journal_entry}`}
               style={journalLinkStyle}

@@ -365,7 +365,7 @@ function PaymentsPage() {
                         >
                           {postingId === payment.id ? "Posting..." : "Post"}
                         </button>
-                      ) : payment.journal_entry ? (
+                      ) : payment.status === "posted" && payment.journal_entry ? (
                         <Link
                           to={`/accounting/journal-entries/${payment.journal_entry}`}
                           style={secondaryButtonStyle}

@@ -10,7 +10,7 @@ import {
 } from "../../../components/ui/mvp";
 import { theme } from "../../../styles/theme";
 import { getJournalEntry } from "../api/get-journal-entry";
-import type { JournalEntryDetail, JournalItemLine } from "../types";
+import type { JournalEntryDetail } from "../types";
 
 function JournalEntryDetailPage() {
   const { id } = useParams();
@@ -64,6 +64,8 @@ function JournalEntryDetailPage() {
 
       <SectionCard title="Journal Summary">
         <div style={summaryGridStyle}>
+          <InfoRow label="Journal" value={`${entry.journal.code} - ${entry.journal.name}`} />
+          <InfoRow label="Journal Type" value={entry.journal.type} />
           <InfoRow label="Date" value={entry.date} />
           <InfoRow label="Reference" value={entry.reference || "-"} />
           <InfoRow label="Description" value={entry.description || "-"} />
@@ -80,8 +82,10 @@ function JournalEntryDetailPage() {
             <table style={tableStyle}>
               <thead style={tableHeadStyle}>
                 <tr>
-                  <th style={thStyle}>Account</th>
-                  <th style={thStyle}>Partner</th>
+                  <th style={thStyle}>Account Code</th>
+                  <th style={thStyle}>Account Name</th>
+                  <th style={thStyle}>Partner Name</th>
+                  <th style={thStyle}>Description</th>
                   <th style={rightThStyle}>Debit</th>
                   <th style={rightThStyle}>Credit</th>
                 </tr>
@@ -89,8 +93,10 @@ function JournalEntryDetailPage() {
               <tbody>
                 {entry.items.map((line) => (
                   <tr key={line.id}>
-                    <td style={tdStyle}>{getAccountLabel(line)}</td>
-                    <td style={tdStyle}>{getPartnerLabel(line)}</td>
+                    <td style={tdStyle}>{line.account_code}</td>
+                    <td style={tdStyle}>{line.account_name}</td>
+                    <td style={tdStyle}>{line.partner_name || "-"}</td>
+                    <td style={tdStyle}>{line.description || "-"}</td>
                     <td style={rightTdStyle}>{line.debit}</td>
                     <td style={rightTdStyle}>{line.credit}</td>
                   </tr>
@@ -111,14 +117,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <div style={infoValueStyle}>{value}</div>
     </div>
   );
-}
-
-function getAccountLabel(line: JournalItemLine) {
-  return [line.account_code, line.account_name].filter(Boolean).join(" - ");
-}
-
-function getPartnerLabel(line: JournalItemLine) {
-  return line.partner_name || line.partner_id || "-";
 }
 
 const summaryGridStyle: React.CSSProperties = {

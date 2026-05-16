@@ -222,7 +222,7 @@ function PurchaseInvoiceDetailsPage() {
         subtitle="Purchase invoice details"
         actions={
           <>
-          {invoice.journal_entry && (
+          {isPosted && invoice.journal_entry && (
             <Link
               to={`/accounting/journal-entries/${invoice.journal_entry}`}
               style={journalLinkStyle}

@@ -2,7 +2,7 @@ export type JournalBasic = {
   id: string;
   code: string;
   name: string;
-  type?: string;
+  type: string;
 };
 
 export type JournalItemLine = {
@@ -14,7 +14,7 @@ export type JournalItemLine = {
   partner_name: string | null;
   debit: string;
   credit: string;
-  description: string;
+  description: string | null;
 };
 
 export type JournalEntryDetail = {
@@ -23,8 +23,8 @@ export type JournalEntryDetail = {
   entry_number: string;
   date: string;
   status: string;
-  reference: string;
-  description: string;
+  reference: string | null;
+  description: string | null;
   total_debit: string;
   total_credit: string;
   items: JournalItemLine[];
