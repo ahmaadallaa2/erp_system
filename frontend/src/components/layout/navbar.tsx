@@ -1,10 +1,16 @@
 import { theme } from "../../styles/theme";
+import { useAuthStore } from "../../app/store/auth-store";
 
 type NavbarProps = {
   onToggleSidebar: () => void;
 };
 
 function Navbar({ onToggleSidebar }: NavbarProps) {
+  const authContext = useAuthStore((state) => state.authContext);
+  const isContextLoading = useAuthStore((state) => state.isContextLoading);
+  const companyName = isContextLoading ? "..." : authContext?.company?.name || "-";
+  const branchName = isContextLoading ? "..." : authContext?.branch?.name || "-";
+
   return (
     <header style={navbarStyle}>
       <div style={leftSectionStyle}>
@@ -18,7 +24,13 @@ function Navbar({ onToggleSidebar }: NavbarProps) {
         </div>
       </div>
 
-      <span style={brandStyle}>Powered by TB</span>
+      <div style={rightSectionStyle}>
+        <div style={contextBlockStyle}>
+          <span style={contextItemStyle}>Company: {companyName}</span>
+          <span style={contextItemStyle}>Branch: {branchName}</span>
+        </div>
+        <span style={brandStyle}>Powered by TB</span>
+      </div>
     </header>
   );
 }
@@ -66,6 +78,28 @@ const brandStyle: React.CSSProperties = {
   fontSize: "13px",
   color: theme.colors.primaryDark,
   fontWeight: 700,
+};
+
+const rightSectionStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "16px",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const contextBlockStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const contextItemStyle: React.CSSProperties = {
+  fontSize: "12px",
+  color: theme.colors.textSecondary,
+  fontWeight: 700,
+  whiteSpace: "nowrap",
 };
 
 export default Navbar;

@@ -1,6 +1,7 @@
 export const API_ENDPOINTS = {
   auth: {
     login: "/auth/login/",
+    context: "/auth/context/",
   },
   dashboard: {
     summary: "/dashboard/summary/",
