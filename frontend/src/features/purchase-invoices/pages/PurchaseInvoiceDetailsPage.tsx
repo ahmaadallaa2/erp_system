@@ -18,6 +18,7 @@ import {
   SectionCard,
   StatusBadge,
 } from "../../../components/ui/mvp";
+import { getApiErrorMessage } from "../../../lib/api/errors";
 
 function PurchaseInvoiceDetailsPage() {
   const { id } = useParams();
@@ -152,11 +153,7 @@ function PurchaseInvoiceDetailsPage() {
       setItemNotes("");
     } catch (err: any) {
       console.error("Add invoice item error:", err);
-      setItemError(
-        err?.response?.data
-          ? JSON.stringify(err.response.data)
-          : "Failed to add invoice item."
-      );
+      setItemError(getApiErrorMessage(err));
     } finally {
       setSavingItem(false);
     }
@@ -184,11 +181,7 @@ function PurchaseInvoiceDetailsPage() {
       await loadInvoiceData(id);
     } catch (err: any) {
       console.error("Post invoice error:", err);
-      setPostError(
-        err?.response?.data
-          ? JSON.stringify(err.response.data)
-          : "Failed to post invoice."
-      );
+      setPostError(getApiErrorMessage(err));
     } finally {
       setPosting(false);
     }

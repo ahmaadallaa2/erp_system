@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router";
-import axios from "axios";
 import { theme } from "../../../styles/theme";
+import { getApiErrorMessage } from "../../../lib/api/errors";
 import { listPartners } from "../../partners/api/list-partners";
 import type { Partner } from "../../partners/types/partner";
 import { getAccounts } from "../api/accounts-api";
@@ -91,7 +91,7 @@ function PaymentsPage() {
       await loadPayments();
     } catch (err) {
       console.error("Payment create error:", err);
-      setError(getApiErrorMessage(err, "Failed to create payment."));
+      setError(getApiErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -106,7 +106,7 @@ function PaymentsPage() {
       await loadPayments();
     } catch (err) {
       console.error("Payment post error:", err);
-      setError(getApiErrorMessage(err, "Failed to post payment."));
+      setError(getApiErrorMessage(err));
     } finally {
       setPostingId(null);
     }
@@ -428,43 +428,6 @@ function getPaymentSummary(payments: Payment[]) {
     },
     { received: 0, paid: 0, drafts: 0 }
   );
-}
-
-function getApiErrorMessage(error: unknown, fallback: string) {
-  if (!axios.isAxiosError(error)) {
-    return fallback;
-  }
-
-  const detail = error.response?.data;
-  const message = formatApiErrorDetail(detail);
-
-  return message ? `${fallback}: ${message}` : fallback;
-}
-
-function formatApiErrorDetail(detail: unknown): string {
-  if (!detail) {
-    return "";
-  }
-
-  if (typeof detail === "string") {
-    return detail;
-  }
-
-  if (Array.isArray(detail)) {
-    return detail.map(formatApiErrorDetail).filter(Boolean).join(" ");
-  }
-
-  if (typeof detail === "object") {
-    return Object.entries(detail)
-      .map(([key, value]) => {
-        const message = formatApiErrorDetail(value);
-        return message ? `${key}: ${message}` : "";
-      })
-      .filter(Boolean)
-      .join(" ");
-  }
-
-  return String(detail);
 }
 
 const pageStyle: React.CSSProperties = {
