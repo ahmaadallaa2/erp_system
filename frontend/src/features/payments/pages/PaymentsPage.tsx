@@ -8,6 +8,16 @@ import { getAccounts } from "../api/accounts-api";
 import type { AccountLookup } from "../api/accounts-api";
 import { createPayment, getPayments, postPayment } from "../api/payments-api";
 import type { CreatePaymentPayload, Payment } from "../types/payment";
+import {
+  EmptyState,
+  ErrorMessage,
+  LoadingState,
+  MetricCard,
+  PageHeader,
+  StatusBadge,
+  formatNumber,
+  toBusinessLabel,
+} from "../../../components/ui/mvp";
 
 const initialForm: CreatePaymentPayload = {
   partner: "",
@@ -101,18 +111,46 @@ function PaymentsPage() {
     }
   }
 
+  const paymentSummary = getPaymentSummary(payments);
+
   return (
     <main style={pageStyle}>
-      <div style={headerStyle}>
-        <div>
-          <h1 style={titleStyle}>Payments</h1>
-          <p style={subtitleStyle}>Create and post customer or supplier payments.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Payments"
+        subtitle="Create draft customer receipts and supplier payments, then post them."
+      />
 
       <form onSubmit={handleSubmit} style={formCardStyle}>
         <div style={formHeaderStyle}>
           <h2 style={formTitleStyle}>New Draft Payment</h2>
+          <p style={formSubtitleStyle}>
+            Select Receive Payment for inbound customer cash/bank receipts, or Make
+            Payment for outbound supplier payments.
+          </p>
+        </div>
+
+        <div style={paymentTypeGroupStyle}>
+          <button
+            type="button"
+            onClick={() =>
+              setForm((current) => ({ ...current, payment_type: "inbound" }))
+            }
+            style={getPaymentTypeButtonStyle(form.payment_type === "inbound")}
+          >
+            <span style={paymentTypeTitleStyle}>Receive Payment</span>
+            <span style={paymentTypeHintStyle}>Inbound from customer</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setForm((current) => ({ ...current, payment_type: "outbound" }))
+            }
+            style={getPaymentTypeButtonStyle(form.payment_type === "outbound")}
+          >
+            <span style={paymentTypeTitleStyle}>Make Payment</span>
+            <span style={paymentTypeHintStyle}>Outbound to supplier</span>
+          </button>
         </div>
 
         <div style={formGridStyle}>
@@ -155,24 +193,7 @@ function PaymentsPage() {
           </label>
 
           <label style={fieldStyle}>
-            <span style={labelStyle}>Type</span>
-            <select
-              value={form.payment_type}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  payment_type: event.target.value as CreatePaymentPayload["payment_type"],
-                }))
-              }
-              style={inputStyle}
-            >
-              <option value="inbound">Inbound</option>
-              <option value="outbound">Outbound</option>
-            </select>
-          </label>
-
-          <label style={fieldStyle}>
-            <span style={labelStyle}>Method</span>
+            <span style={labelStyle}>Payment Method</span>
             <select
               value={form.payment_method}
               onChange={(event) =>
@@ -183,8 +204,8 @@ function PaymentsPage() {
               }
               style={inputStyle}
             >
-              <option value="cash">Cash</option>
-              <option value="bank">Bank</option>
+              <option value="cash">Cash Account</option>
+              <option value="bank">Bank Account</option>
             </select>
           </label>
 
@@ -247,15 +268,38 @@ function PaymentsPage() {
         </div>
       </form>
 
-      {loading && <p style={stateTextStyle}>Loading payments...</p>}
+      {loading && <LoadingState label="Loading payments..." />}
 
-      {!loading && error && <p style={errorTextStyle}>{error}</p>}
+      {!loading && <ErrorMessage message={error} />}
+
+      {!loading && !error && payments.length > 0 && (
+        <div style={summaryGridStyle}>
+          <MetricCard
+            title="Total Received"
+            value={formatNumber(paymentSummary.received)}
+            subtitle="Inbound posted and draft payments"
+            tone="success"
+          />
+          <MetricCard
+            title="Total Paid"
+            value={formatNumber(paymentSummary.paid)}
+            subtitle="Outbound posted and draft payments"
+            tone="danger"
+          />
+          <MetricCard
+            title="Draft Payments"
+            value={formatNumber(paymentSummary.drafts)}
+            subtitle="Waiting to be posted"
+            tone="warning"
+          />
+        </div>
+      )}
 
       {!loading && !error && payments.length === 0 && (
-        <div style={emptyStateStyle}>
-          <h3 style={emptyStateTitleStyle}>No payments found</h3>
-          <p style={emptyStateTextStyle}>Create your first draft payment above.</p>
-        </div>
+        <EmptyState
+          title="No payments found"
+          message="Create your first draft payment above."
+        />
       )}
 
       {!loading && !error && payments.length > 0 && (
@@ -295,8 +339,8 @@ function PaymentsPage() {
                     <td style={tdStyle}>
                       <span style={mutedTextStyle}>{payment.date}</span>
                     </td>
-                    <td style={tdStyle}>{payment.payment_type}</td>
-                    <td style={tdStyle}>{payment.payment_method}</td>
+                    <td style={tdStyle}>{formatPaymentType(payment.payment_type)}</td>
+                    <td style={tdStyle}>{toBusinessLabel(payment.payment_method)}</td>
                     <td style={tdStyle}>
                       {partnersMap[payment.partner] || payment.partner}
                     </td>
@@ -307,9 +351,7 @@ function PaymentsPage() {
                       <span style={amountTextStyle}>{payment.amount}</span>
                     </td>
                     <td style={tdStyle}>
-                      <span style={statusBadgeStyle(payment.status)}>
-                        {payment.status}
-                      </span>
+                      <StatusBadge status={payment.status} />
                     </td>
                     <td style={tdStyle}>{payment.reference || "-"}</td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>
@@ -355,6 +397,31 @@ function formatAccountLabel(account: AccountLookup) {
   return `${account.code} - ${account.name}`;
 }
 
+function formatPaymentType(paymentType: Payment["payment_type"]) {
+  return paymentType === "inbound" ? "Receive Payment" : "Make Payment";
+}
+
+function getPaymentSummary(payments: Payment[]) {
+  return payments.reduce(
+    (summary, payment) => {
+      const amount = Number(payment.amount || 0);
+
+      if (payment.payment_type === "inbound") {
+        summary.received += amount;
+      } else {
+        summary.paid += amount;
+      }
+
+      if (payment.status === "draft") {
+        summary.drafts += 1;
+      }
+
+      return summary;
+    },
+    { received: 0, paid: 0, drafts: 0 }
+  );
+}
+
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (!axios.isAxiosError(error)) {
     return fallback;
@@ -396,34 +463,19 @@ const pageStyle: React.CSSProperties = {
   background: theme.colors.background,
 };
 
-const headerStyle: React.CSSProperties = {
-  marginBottom: "24px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "16px",
-  flexWrap: "wrap",
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  color: theme.colors.textPrimary,
-  fontSize: "28px",
-  fontWeight: 700,
-};
-
-const subtitleStyle: React.CSSProperties = {
-  marginTop: "8px",
-  color: theme.colors.textSecondary,
-  fontSize: "14px",
-};
-
 const formCardStyle: React.CSSProperties = {
   background: theme.colors.surface,
   border: `1px solid ${theme.colors.border}`,
   borderRadius: "16px",
   marginBottom: "24px",
   overflow: "hidden",
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+  marginBottom: "20px",
 };
 
 const formHeaderStyle: React.CSSProperties = {
@@ -435,6 +487,44 @@ const formTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: "18px",
   color: theme.colors.textPrimary,
+};
+
+const formSubtitleStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  color: theme.colors.textSecondary,
+  fontSize: "13px",
+};
+
+const paymentTypeGroupStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "12px",
+  padding: "18px 20px 0",
+};
+
+function getPaymentTypeButtonStyle(isActive: boolean): React.CSSProperties {
+  return {
+    border: `1px solid ${isActive ? theme.colors.primary : theme.colors.border}`,
+    background: isActive ? "rgba(14, 165, 164, 0.08)" : "#ffffff",
+    color: theme.colors.textPrimary,
+    borderRadius: "8px",
+    padding: "12px",
+    textAlign: "left",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+  };
+}
+
+const paymentTypeTitleStyle: React.CSSProperties = {
+  fontWeight: 800,
+  fontSize: "14px",
+};
+
+const paymentTypeHintStyle: React.CSSProperties = {
+  color: theme.colors.textSecondary,
+  fontSize: "12px",
 };
 
 const formGridStyle: React.CSSProperties = {
@@ -569,57 +659,6 @@ const amountTextStyle: React.CSSProperties = {
   color: theme.colors.textPrimary,
   fontWeight: 700,
   fontVariantNumeric: "tabular-nums",
-};
-
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const isPosted = status === "posted";
-  const isCancelled = status === "cancelled";
-
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 12px",
-    borderRadius: "999px",
-    background: isPosted
-      ? "rgba(22, 163, 74, 0.12)"
-      : isCancelled
-        ? "rgba(220, 38, 38, 0.10)"
-        : "rgba(245, 158, 11, 0.14)",
-    color: isPosted ? "#166534" : isCancelled ? "#991b1b" : "#92400e",
-    fontWeight: 700,
-    fontSize: "12px",
-    textTransform: "capitalize",
-  };
-}
-
-const stateTextStyle: React.CSSProperties = {
-  color: theme.colors.textSecondary,
-  fontSize: "14px",
-};
-
-const errorTextStyle: React.CSSProperties = {
-  color: theme.colors.danger,
-  fontSize: "14px",
-};
-
-const emptyStateStyle: React.CSSProperties = {
-  background: theme.colors.surface,
-  border: `1px dashed ${theme.colors.border}`,
-  borderRadius: "16px",
-  padding: "32px",
-  textAlign: "center",
-};
-
-const emptyStateTitleStyle: React.CSSProperties = {
-  margin: 0,
-  color: theme.colors.textPrimary,
-  fontSize: "18px",
-};
-
-const emptyStateTextStyle: React.CSSProperties = {
-  marginTop: "8px",
-  color: theme.colors.textSecondary,
-  fontSize: "14px",
 };
 
 export default PaymentsPage;

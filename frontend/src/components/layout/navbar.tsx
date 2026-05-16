@@ -9,12 +9,12 @@ function Navbar({ onToggleSidebar }: NavbarProps) {
     <header style={navbarStyle}>
       <div style={leftSectionStyle}>
         <button onClick={onToggleSidebar} style={toggleButtonStyle}>
-          ☰
+          Menu
         </button>
 
         <div>
           <strong style={titleStyle}>TB ERP System</strong>
-          <div style={subtitleStyle}>Modern business management</div>
+          <div style={subtitleStyle}>Internal operations workspace</div>
         </div>
       </div>
 
@@ -26,7 +26,7 @@ function Navbar({ onToggleSidebar }: NavbarProps) {
 const navbarStyle: React.CSSProperties = {
   background: theme.colors.surface,
   borderBottom: `1px solid ${theme.colors.border}`,
-  padding: "16px 24px",
+  padding: "14px 24px",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -42,18 +42,18 @@ const leftSectionStyle: React.CSSProperties = {
 const toggleButtonStyle: React.CSSProperties = {
   border: `1px solid ${theme.colors.border}`,
   background: theme.colors.surface,
-  color: theme.colors.primary,
-  borderRadius: "10px",
+  color: theme.colors.primaryDark,
+  borderRadius: "8px",
   padding: "8px 12px",
   cursor: "pointer",
-  fontSize: "16px",
+  fontSize: "13px",
   fontWeight: 700,
 };
 
 const titleStyle: React.CSSProperties = {
   color: theme.colors.textPrimary,
   fontSize: "16px",
-  fontWeight: 700,
+  fontWeight: 800,
 };
 
 const subtitleStyle: React.CSSProperties = {
@@ -64,8 +64,8 @@ const subtitleStyle: React.CSSProperties = {
 
 const brandStyle: React.CSSProperties = {
   fontSize: "13px",
-  color: theme.colors.primary,
-  fontWeight: 600,
+  color: theme.colors.primaryDark,
+  fontWeight: 700,
 };
 
 export default Navbar;

@@ -11,7 +11,6 @@ function Sidebar({ isOpen }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const logout = useAuthStore((state) => state.logout);
-
   const [inventoryOpen, setInventoryOpen] = useState(true);
 
   const handleLogout = () => {
@@ -34,47 +33,12 @@ function Sidebar({ isOpen }: SidebarProps) {
         <h2 style={logoStyle}>ERP System</h2>
 
         <nav style={navStyle}>
-          <Link
-            to="/dashboard"
-            style={getLinkStyle(location.pathname === "/dashboard")}
-          >
-            Dashboard
-          </Link>
-
-          <Link
-            to="/sales-invoices"
-            style={getLinkStyle(location.pathname === "/sales-invoices")}
-          >
-            Sales Invoices
-          </Link>
-
-          <Link
-            to="/partners"
-            style={getLinkStyle(location.pathname === "/partners")}
-          >
-            Partners
-          </Link>
-
-          <Link
-            to="/purchase-invoices"
-            style={getLinkStyle(location.pathname === "/purchase-invoices")}
-          >
-            Purchase Invoices
-          </Link>
-
-          <Link
-            to="/payments"
-            style={getLinkStyle(location.pathname === "/payments")}
-          >
-            Payments
-          </Link>
-
-          <Link
-            to="/ai-assistant"
-            style={getLinkStyle(location.pathname === "/ai-assistant")}
-          >
-            AI Assistant
-          </Link>
+          <SidebarLink to="/dashboard" label="Dashboard" />
+          <SidebarLink to="/sales-invoices" label="Sales Invoices" />
+          <SidebarLink to="/partners" label="Partners" />
+          <SidebarLink to="/purchase-invoices" label="Purchase Invoices" />
+          <SidebarLink to="/payments" label="Payments" />
+          <SidebarLink to="/ai-assistant" label="AI Assistant" />
 
           <button
             type="button"
@@ -82,47 +46,20 @@ function Sidebar({ isOpen }: SidebarProps) {
             style={getMenuButtonStyle(isInventoryRoute)}
           >
             <span>Inventory</span>
-            <span>{inventoryOpen ? "−" : "+"}</span>
+            <span>{inventoryOpen ? "-" : "+"}</span>
           </button>
 
           {inventoryOpen && (
             <div style={submenuStyle}>
-              <Link
-                to="/products"
-                style={getSubLinkStyle(location.pathname === "/products")}
-              >
-                Products
-              </Link>
-
-              <Link
-                to="/warehouses"
-                style={getSubLinkStyle(location.pathname === "/warehouses")}
-              >
-                Warehouses
-              </Link>
-
-              <Link
+              <SidebarLink to="/products" label="Products" nested />
+              <SidebarLink to="/warehouses" label="Warehouses" nested />
+              <SidebarLink
                 to="/stock-transactions"
-                style={getSubLinkStyle(
-                  location.pathname === "/stock-transactions"
-                )}
-              >
-                Stock Transactions
-              </Link>
-
-              <Link
-                to="/stock-balances"
-                style={getSubLinkStyle(location.pathname === "/stock-balances")}
-              >
-                Stock Balances
-              </Link>
-
-              <Link
-                to="/stock-movements"
-                style={getSubLinkStyle(location.pathname === "/stock-movements")}
-              >
-                Stock Movements
-              </Link>
+                label="Stock Transactions"
+                nested
+              />
+              <SidebarLink to="/stock-balances" label="Stock Balances" nested />
+              <SidebarLink to="/stock-movements" label="Stock Movements" nested />
             </div>
           )}
         </nav>
@@ -137,25 +74,46 @@ function Sidebar({ isOpen }: SidebarProps) {
   );
 }
 
+function SidebarLink({
+  to,
+  label,
+  nested = false,
+}: {
+  to: string;
+  label: string;
+  nested?: boolean;
+}) {
+  const location = useLocation();
+  const isActive = location.pathname === to || location.pathname.startsWith(`${to}/`);
+
+  return (
+    <Link to={to} style={nested ? getSubLinkStyle(isActive) : getLinkStyle(isActive)}>
+      {label}
+    </Link>
+  );
+}
+
 const sidebarStyle: React.CSSProperties = {
   width: "260px",
-  background: "#0f172a", // dark modern
+  background: "#0f172a",
   color: "#fff",
-  padding: "24px 16px",
+  padding: "22px 16px",
   display: "flex",
   flexDirection: "column",
+  flexShrink: 0,
 };
 
 const logoStyle: React.CSSProperties = {
   marginTop: 0,
-  marginBottom: "24px",
-  color: theme.colors.primary,
+  marginBottom: "22px",
+  color: theme.colors.primaryLight,
+  fontSize: "20px",
 };
 
 const navStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "10px",
+  gap: "8px",
 };
 
 function getLinkStyle(isActive: boolean): React.CSSProperties {
@@ -163,13 +121,11 @@ function getLinkStyle(isActive: boolean): React.CSSProperties {
     color: "#fff",
     textDecoration: "none",
     padding: "10px 12px",
-    borderRadius: "8px",
-    background: isActive
-      ? theme.colors.primary
-      : "rgba(255,255,255,0.05)",
+    borderRadius: "6px",
+    background: isActive ? theme.colors.primary : "rgba(255,255,255,0.05)",
     display: "block",
-    fontWeight: isActive ? 700 : 500,
-    transition: "all 0.2s ease",
+    fontWeight: isActive ? 800 : 600,
+    fontSize: "14px",
   };
 }
 
@@ -177,18 +133,16 @@ function getMenuButtonStyle(isActive: boolean): React.CSSProperties {
   return {
     width: "100%",
     padding: "10px 12px",
-    borderRadius: "8px",
+    borderRadius: "6px",
     border: "none",
-    background: isActive
-      ? theme.colors.primary
-      : "rgba(255,255,255,0.05)",
+    background: isActive ? theme.colors.primary : "rgba(255,255,255,0.05)",
     color: "#fff",
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     fontSize: "14px",
-    fontWeight: isActive ? 700 : 500,
+    fontWeight: isActive ? 800 : 600,
   };
 }
 
@@ -197,31 +151,31 @@ function getSubLinkStyle(isActive: boolean): React.CSSProperties {
     color: "#e5e7eb",
     textDecoration: "none",
     padding: "8px 12px",
-    borderRadius: "8px",
-    background: isActive
-      ? theme.colors.primaryDark
-      : "transparent",
+    borderRadius: "6px",
+    background: isActive ? theme.colors.primaryDark : "transparent",
     display: "block",
     fontSize: "13px",
     marginLeft: "8px",
+    fontWeight: isActive ? 800 : 500,
   };
 }
 
 const submenuStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "6px",
+  gap: "5px",
   paddingLeft: "4px",
 };
 
 const logoutButtonStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  borderRadius: "8px",
-  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "6px",
+  border: "1px solid rgba(255,255,255,0.12)",
   background: "transparent",
   color: "#fff",
   cursor: "pointer",
+  fontWeight: 700,
 };
 
 export default Sidebar;

@@ -7,6 +7,7 @@ import { listWarehouses } from "../../warehouses/api/list-warehouses";
 import type { Partner } from "../../partners/types/partner";
 import type { Warehouse } from "../../warehouses/types/warehouse";
 import { theme } from "../../../styles/theme";
+import { MetricCard, StatusBadge, formatNumber } from "../../../components/ui/mvp";
 
 function PurchaseInvoicesPage() {
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);
@@ -55,6 +56,13 @@ function PurchaseInvoicesPage() {
     loadInvoices();
   }, []);
 
+  const totalAmount = invoices.reduce(
+    (total, invoice) => total + Number(invoice.total_amount || 0),
+    0
+  );
+  const postedCount = invoices.filter((invoice) => invoice.status === "posted").length;
+  const draftCount = invoices.filter((invoice) => invoice.status === "draft").length;
+
   return (
     <main style={pageStyle}>
       <div style={headerStyle}>
@@ -71,6 +79,29 @@ function PurchaseInvoicesPage() {
       {loading && <p style={stateTextStyle}>Loading purchase invoices...</p>}
 
       {!loading && error && <p style={errorTextStyle}>{error}</p>}
+
+      {!loading && !error && invoices.length > 0 && (
+        <div style={summaryGridStyle}>
+          <MetricCard
+            title="Purchase Total"
+            value={formatNumber(totalAmount)}
+            subtitle="All loaded purchase invoices"
+            tone="info"
+          />
+          <MetricCard
+            title="Posted Invoices"
+            value={formatNumber(postedCount)}
+            subtitle="Completed supplier documents"
+            tone="success"
+          />
+          <MetricCard
+            title="Draft Invoices"
+            value={formatNumber(draftCount)}
+            subtitle="Waiting to be posted"
+            tone="warning"
+          />
+        </div>
+      )}
 
       {!loading && !error && invoices.length === 0 && (
         <div style={emptyStateStyle}>
@@ -138,9 +169,7 @@ function PurchaseInvoicesPage() {
                     </td>
 
                     <td style={tdStyle}>
-                      <span style={statusBadgeStyle(invoice.status)}>
-                        {invoice.status}
-                      </span>
+                      <StatusBadge status={invoice.status} />
                     </td>
 
                     <td style={{ ...tdStyle, textAlign: "right" }}>
@@ -197,6 +226,13 @@ const createLinkStyle: React.CSSProperties = {
   fontSize: "14px",
   whiteSpace: "nowrap",
   boxShadow: "0 8px 20px rgba(14, 165, 164, 0.18)",
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+  marginBottom: "20px",
 };
 
 const tableCardStyle: React.CSSProperties = {
@@ -304,22 +340,6 @@ const countBadgeStyle: React.CSSProperties = {
   fontWeight: 700,
   fontSize: "13px",
 };
-
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const isPosted = status === "posted";
-
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "6px 12px",
-    borderRadius: "999px",
-    background: isPosted ? "rgba(22, 163, 74, 0.12)" : "rgba(245, 158, 11, 0.14)",
-    color: isPosted ? "#166534" : "#92400e",
-    fontWeight: 700,
-    fontSize: "12px",
-    textTransform: "capitalize",
-  };
-}
 
 const stateTextStyle: React.CSSProperties = {
   color: theme.colors.textSecondary,

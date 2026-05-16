@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ComparisonBar,
+  ErrorMessage,
+  LoadingState,
+  MetricCard,
+  PageHeader,
+  ProgressBar,
+  SectionCard,
+  formatNumber,
+} from "../../../components/ui/mvp";
 import { theme } from "../../../styles/theme";
-import DashboardCard from "../../../components/dashboard-card";
 import { getDashboardSummary } from "../api/dashboard-api";
 import type { DashboardSummary } from "../api/dashboard-api";
 
@@ -28,72 +37,160 @@ function DashboardPage() {
     loadStats();
   }, []);
 
+  const metrics = useMemo(() => {
+    const totalSales = toNumber(summary?.total_sales);
+    const totalPurchases = toNumber(summary?.total_purchases);
+    const receivables = toNumber(summary?.customers_receivable);
+    const payables = toNumber(summary?.suppliers_payable);
+    const inventoryQuantity = toNumber(summary?.inventory_quantity);
+    const inventoryItems = toNumber(summary?.inventory_items);
+    const lowStockProducts = toNumber(summary?.low_stock_products);
+
+    return {
+      totalSales,
+      totalPurchases,
+      grossDifference: totalSales - totalPurchases,
+      receivables,
+      payables,
+      inventoryQuantity,
+      inventoryItems,
+      lowStockProducts,
+    };
+  }, [summary]);
+
   return (
     <main style={pageStyle}>
-      <div style={headerStyle}>
-        <h1 style={titleStyle}>Dashboard</h1>
-        <p style={subtitleStyle}>Overview of your system.</p>
-      </div>
+      <PageHeader
+        title="Management Dashboard"
+        subtitle="A quick operating view of sales, purchases, inventory, and working balances."
+      />
 
-      {error && <p style={errorStyle}>{error}</p>}
+      <ErrorMessage message={error || ""} />
+      {isLoading && <LoadingState label="Loading dashboard summary..." />}
 
-      <div style={gridStyle}>
-        <DashboardCard
-          title="Total Sales"
-          value={formatMetric(summary?.total_sales, isLoading)}
-          subtitle="Posted sales invoices"
-        />
+      {!isLoading && !error && (
+        <>
+          <div style={kpiGridStyle}>
+            <MetricCard
+              title="Total Sales"
+              value={formatNumber(metrics.totalSales)}
+              subtitle="Posted sales invoices"
+              tone="success"
+            />
+            <MetricCard
+              title="Total Purchases"
+              value={formatNumber(metrics.totalPurchases)}
+              subtitle="Posted purchase invoices"
+              tone="info"
+            />
+            <MetricCard
+              title="Gross Difference"
+              value={formatNumber(metrics.grossDifference)}
+              subtitle="Sales minus purchases"
+              tone={metrics.grossDifference >= 0 ? "success" : "danger"}
+            />
+            <MetricCard
+              title="Inventory Quantity"
+              value={formatNumber(metrics.inventoryQuantity)}
+              subtitle={`${formatNumber(metrics.inventoryItems)} stocked items`}
+              tone="neutral"
+            />
+            <MetricCard
+              title="Customer Receivables"
+              value={formatNumber(metrics.receivables)}
+              subtitle="Open customer balance"
+              tone="warning"
+            />
+            <MetricCard
+              title="Supplier Payables"
+              value={formatNumber(metrics.payables)}
+              subtitle="Open supplier balance"
+              tone="danger"
+            />
+            <MetricCard
+              title="Low Stock Products"
+              value={formatNumber(metrics.lowStockProducts)}
+              subtitle="At or below reorder point"
+              tone={metrics.lowStockProducts > 0 ? "warning" : "success"}
+            />
+          </div>
 
-        <DashboardCard
-          title="Total Purchases"
-          value={formatMetric(summary?.total_purchases, isLoading)}
-          subtitle="Posted purchase invoices"
-        />
+          <div style={visualGridStyle}>
+            <SectionCard
+              title="Sales vs Purchases"
+              subtitle="Posted document totals from the dashboard summary."
+            >
+              <ComparisonBar
+                label="Trading activity"
+                leftLabel="Sales"
+                leftValue={metrics.totalSales}
+                rightLabel="Purchases"
+                rightValue={metrics.totalPurchases}
+              />
+            </SectionCard>
 
-        <DashboardCard
-          title="Inventory Items"
-          value={formatMetric(summary?.inventory_items, isLoading)}
-          subtitle="Products with stock balances"
-        />
+            <SectionCard
+              title="Receivables vs Payables"
+              subtitle="Open business balances for customers and suppliers."
+            >
+              <ComparisonBar
+                label="Working balance"
+                leftLabel="Receivables"
+                leftValue={metrics.receivables}
+                rightLabel="Payables"
+                rightValue={metrics.payables}
+              />
+            </SectionCard>
+          </div>
 
-        <DashboardCard
-          title="Inventory Quantity"
-          value={formatMetric(summary?.inventory_quantity, isLoading)}
-          subtitle="Current stock quantity"
-        />
+          <div style={visualGridStyle}>
+            <SectionCard
+              title="Inventory Health"
+              subtitle="Uses existing inventory quantity and low stock counts."
+            >
+              <div style={inventoryHealthStyle}>
+                <ProgressBar
+                  label="Products above low-stock alert"
+                  value={Math.max(metrics.inventoryItems - metrics.lowStockProducts, 0)}
+                  max={Math.max(metrics.inventoryItems, 1)}
+                  tone="success"
+                />
+                <ProgressBar
+                  label="Low-stock share"
+                  value={metrics.lowStockProducts}
+                  max={Math.max(metrics.inventoryItems, 1)}
+                  tone={metrics.lowStockProducts > 0 ? "warning" : "success"}
+                />
+              </div>
+            </SectionCard>
 
-        <DashboardCard
-          title="Customers Receivable"
-          value={formatMetric(summary?.customers_receivable, isLoading)}
-          subtitle="Sales minus inbound payments"
-        />
-
-        <DashboardCard
-          title="Suppliers Payable"
-          value={formatMetric(summary?.suppliers_payable, isLoading)}
-          subtitle="Purchases minus outbound payments"
-        />
-
-        <DashboardCard
-          title="Low Stock Products"
-          value={formatMetric(summary?.low_stock_products, isLoading)}
-          subtitle="Rows at or below reorder point"
-        />
-      </div>
+            <SectionCard title="Low Stock Alert">
+              <div style={alertCardStyle(metrics.lowStockProducts > 0)}>
+                <div style={alertNumberStyle}>{formatNumber(metrics.lowStockProducts)}</div>
+                <div>
+                  <strong>
+                    {metrics.lowStockProducts > 0
+                      ? "Products need attention"
+                      : "No low-stock products"}
+                  </strong>
+                  <p style={alertTextStyle}>
+                    {metrics.lowStockProducts > 0
+                      ? "Review reorder points and replenish priority inventory."
+                      : "Inventory is currently above configured reorder points."}
+                  </p>
+                </div>
+              </div>
+            </SectionCard>
+          </div>
+        </>
+      )}
     </main>
   );
 }
 
-function formatMetric(value: number | string | undefined, isLoading: boolean) {
-  if (isLoading) {
-    return "...";
-  }
-
-  if (value === undefined || value === null || value === "") {
-    return "0";
-  }
-
-  return String(value);
+function toNumber(value: number | string | undefined | null) {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 const pageStyle: React.CSSProperties = {
@@ -101,29 +198,54 @@ const pageStyle: React.CSSProperties = {
   minHeight: "100%",
 };
 
-const headerStyle: React.CSSProperties = {
-  marginBottom: "24px",
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  color: theme.colors.textPrimary,
-};
-
-const subtitleStyle: React.CSSProperties = {
-  marginTop: "8px",
-  color: theme.colors.textSecondary,
-};
-
-const errorStyle: React.CSSProperties = {
-  margin: "0 0 16px",
-  color: theme.colors.danger,
-};
-
-const gridStyle: React.CSSProperties = {
+const kpiGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
   gap: "16px",
+  marginBottom: "20px",
+};
+
+const visualGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  gap: "20px",
+};
+
+const inventoryHealthStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "18px",
+};
+
+function alertCardStyle(hasAlert: boolean): React.CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    padding: "18px",
+    borderRadius: "8px",
+    border: `1px solid ${hasAlert ? "rgba(245, 158, 11, 0.25)" : "rgba(22, 163, 74, 0.20)"}`,
+    background: hasAlert ? "rgba(245, 158, 11, 0.08)" : "rgba(22, 163, 74, 0.08)",
+  };
+}
+
+const alertNumberStyle: React.CSSProperties = {
+  width: "58px",
+  height: "58px",
+  borderRadius: "8px",
+  background: "#fff",
+  border: `1px solid ${theme.colors.border}`,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: theme.colors.textPrimary,
+  fontSize: "24px",
+  fontWeight: 900,
+};
+
+const alertTextStyle: React.CSSProperties = {
+  margin: "6px 0 0",
+  color: theme.colors.textSecondary,
+  fontSize: "13px",
 };
 
 export default DashboardPage;

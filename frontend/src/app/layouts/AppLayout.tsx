@@ -3,6 +3,7 @@ import { Outlet } from "react-router";
 import Navbar from "../../components/layout/navbar";
 import Sidebar from "../../components/layout/sidebar";
 import Footer from "../../components/layout/footer";
+import { theme } from "../../styles/theme";
 
 function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -15,7 +16,7 @@ function AppLayout() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#f7f7f7",
+        background: theme.colors.background,
         display: "flex",
         flexDirection: "column",
       }}
@@ -29,6 +30,7 @@ function AppLayout() {
           style={{
             flex: 1,
             padding: "24px",
+            minWidth: 0,
           }}
         >
           <Outlet />

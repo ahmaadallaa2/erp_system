@@ -11,6 +11,7 @@ export type PurchaseInvoice = {
   invoice_date: string;
   vendor_bill_number: string | null;
   total_amount: string;
+  journal_entry?: string | null;
   shipping_cost: string;
   clearance_cost: string;
   commission_percentage: string;

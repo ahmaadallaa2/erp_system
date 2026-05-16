@@ -7,6 +7,7 @@ import { listWarehouses } from "../../warehouses/api/list-warehouses";
 import type { Partner } from "../../partners/types/partner";
 import type { Warehouse } from "../../warehouses/types/warehouse";
 import { theme } from "../../../styles/theme";
+import { MetricCard, StatusBadge, formatNumber } from "../../../components/ui/mvp";
 
 function SalesInvoicesPage() {
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
@@ -56,12 +57,22 @@ function SalesInvoicesPage() {
     loadInvoices();
   }, []);
 
+  const totalAmount = invoices.reduce(
+    (total, invoice) => total + Number(invoice.total_amount || 0),
+    0
+  );
+  const postedCount = invoices.filter((invoice) => invoice.status === "posted").length;
+  const draftCount = invoices.filter((invoice) => invoice.status === "draft").length;
+
   return (
     <main style={pageStyle}>
       <div style={headerStyle}>
         <div>
           <h1 style={titleStyle}>Sales Invoices</h1>
           <p style={subtitleStyle}>Manage customer sales invoices.</p>
+          <div style={creditNoteStyle}>
+            MVP note: sales invoices are treated as credit sales only.
+          </div>
         </div>
 
         <Link to="/sales-invoices/new" style={createLinkStyle}>
@@ -72,6 +83,29 @@ function SalesInvoicesPage() {
       {loading && <p style={stateTextStyle}>Loading sales invoices...</p>}
 
       {!loading && error && <p style={errorTextStyle}>{error}</p>}
+
+      {!loading && !error && invoices.length > 0 && (
+        <div style={summaryGridStyle}>
+          <MetricCard
+            title="Sales Total"
+            value={formatNumber(totalAmount)}
+            subtitle="All loaded sales invoices"
+            tone="success"
+          />
+          <MetricCard
+            title="Posted Invoices"
+            value={formatNumber(postedCount)}
+            subtitle="Completed customer documents"
+            tone="success"
+          />
+          <MetricCard
+            title="Draft Invoices"
+            value={formatNumber(draftCount)}
+            subtitle="Waiting to be posted"
+            tone="warning"
+          />
+        </div>
+      )}
 
       {!loading && !error && invoices.length === 0 && (
         <div style={emptyStateStyle}>
@@ -134,9 +168,7 @@ function SalesInvoicesPage() {
                     </td>
 
                     <td style={tdStyle}>
-                      <span style={statusBadgeStyle(invoice.status)}>
-                        {invoice.status}
-                      </span>
+                      <StatusBadge status={invoice.status} />
                     </td>
 
                     <td style={{ ...tdStyle, textAlign: "right" }}>
@@ -186,6 +218,17 @@ const subtitleStyle: React.CSSProperties = {
   color: theme.colors.textSecondary,
 };
 
+const creditNoteStyle: React.CSSProperties = {
+  marginTop: "10px",
+  padding: "10px 12px",
+  borderRadius: "8px",
+  border: "1px solid rgba(14, 165, 164, 0.22)",
+  background: "rgba(14, 165, 164, 0.08)",
+  color: theme.colors.primaryDark,
+  fontSize: "13px",
+  fontWeight: 600,
+};
+
 const createLinkStyle: React.CSSProperties = {
   background: theme.colors.primary,
   color: "#fff",
@@ -193,6 +236,13 @@ const createLinkStyle: React.CSSProperties = {
   borderRadius: "10px",
   textDecoration: "none",
   fontWeight: 700,
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+  marginBottom: "20px",
 };
 
 const tableCardStyle: React.CSSProperties = {
@@ -270,19 +320,6 @@ const countBadgeStyle: React.CSSProperties = {
   borderRadius: "999px",
   fontWeight: 700,
 };
-
-function statusBadgeStyle(status: string): React.CSSProperties {
-  const isPosted = status === "posted";
-
-  return {
-    padding: "6px 12px",
-    borderRadius: "999px",
-    background: isPosted ? "#dcfce7" : "#fef3c7",
-    color: isPosted ? "#166534" : "#92400e",
-    fontWeight: 700,
-    fontSize: "12px",
-  };
-}
 
 const stateTextStyle: React.CSSProperties = {
   color: theme.colors.textSecondary,

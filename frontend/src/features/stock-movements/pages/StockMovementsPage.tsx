@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
+import {
+  EmptyState,
+  ErrorMessage,
+  LoadingState,
+  PageHeader,
+} from "../../../components/ui/mvp";
+import { theme } from "../../../styles/theme";
+import { listProducts } from "../../products/api/list-products";
+import type { Product } from "../../products/types/product";
+import { listStockTransactions } from "../../stock-transactions/api/list-stock-transactions";
+import type { StockTransaction } from "../../stock-transactions/types/stock-transaction";
 import { listStockMovements } from "../api/list-stock-movements";
 import type { StockMovement } from "../types/stock-movement";
-import { listProducts } from "../../products/api/list-products";
-import { listStockTransactions } from "../../stock-transactions/api/list-stock-transactions";
-import type { Product } from "../../products/types/product";
-import type { StockTransaction } from "../../stock-transactions/types/stock-transaction";
 
 function StockMovementsPage() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [productsMap, setProductsMap] = useState<Record<string, string>>({});
-  const [transactionsMap, setTransactionsMap] = useState<Record<string, string>>(
-    {}
-  );
+  const [transactionsMap, setTransactionsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -55,56 +60,39 @@ function StockMovementsPage() {
 
   return (
     <main>
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ margin: 0 }}>Stock Movements</h1>
-        <p style={{ marginTop: "8px", color: "#666" }}>
-          View item-level stock movement lines.
-        </p>
-      </div>
+      <PageHeader title="Stock Movements" subtitle="Item-level inventory movement lines." />
 
-      {loading && <p>Loading stock movements...</p>}
-
-      {!loading && error && <p style={{ color: "red" }}>{error}</p>}
+      {loading && <LoadingState label="Loading stock movements..." />}
+      {!loading && <ErrorMessage message={error} />}
 
       {!loading && !error && movements.length === 0 && (
-        <p>No stock movements found.</p>
+        <EmptyState
+          title="No stock movements found"
+          message="Movement lines appear after stock transactions are posted."
+        />
       )}
 
       {!loading && !error && movements.length > 0 && (
-        <div
-          style={{
-            overflowX: "auto",
-            background: "#fff",
-            border: "1px solid #ddd",
-            borderRadius: "8px",
-          }}
-        >
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-            }}
-          >
-            <thead style={{ background: "#f5f5f5" }}>
+        <div style={tableCardStyle}>
+          <table style={tableStyle}>
+            <thead style={tableHeadStyle}>
               <tr>
                 <th style={thStyle}>Transaction</th>
                 <th style={thStyle}>Product</th>
-                <th style={thStyle}>Quantity</th>
-                <th style={thStyle}>Unit Cost</th>
+                <th style={rightThStyle}>Quantity</th>
+                <th style={rightThStyle}>Unit Cost</th>
                 <th style={thStyle}>Note</th>
               </tr>
             </thead>
             <tbody>
               {movements.map((movement) => (
                 <tr key={movement.id}>
-                  <td style={tdStyle}>
+                  <td style={tdStrongStyle}>
                     {transactionsMap[movement.transaction] || movement.transaction}
                   </td>
-                  <td style={tdStyle}>
-                    {productsMap[movement.product] || movement.product}
-                  </td>
-                  <td style={tdStyle}>{movement.quantity}</td>
-                  <td style={tdStyle}>{movement.unit_cost}</td>
+                  <td style={tdStyle}>{productsMap[movement.product] || movement.product}</td>
+                  <td style={rightTdStyle}>{movement.quantity}</td>
+                  <td style={rightTdStyle}>{movement.unit_cost}</td>
                   <td style={tdStyle}>{movement.note || "-"}</td>
                 </tr>
               ))}
@@ -116,17 +104,51 @@ function StockMovementsPage() {
   );
 }
 
+const tableCardStyle: React.CSSProperties = {
+  overflowX: "auto",
+  background: theme.colors.surface,
+  border: `1px solid ${theme.colors.border}`,
+  borderRadius: "8px",
+};
+
+const tableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+};
+
+const tableHeadStyle: React.CSSProperties = {
+  background: "#f8fafc",
+};
+
 const thStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: "12px",
-  borderBottom: "1px solid #ddd",
-  fontSize: "14px",
+  padding: "12px 14px",
+  borderBottom: `1px solid ${theme.colors.border}`,
+  fontSize: "13px",
+  color: theme.colors.textSecondary,
+};
+
+const rightThStyle: React.CSSProperties = {
+  ...thStyle,
+  textAlign: "right",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "12px",
-  borderBottom: "1px solid #eee",
+  padding: "13px 14px",
+  borderBottom: `1px solid ${theme.colors.border}`,
   fontSize: "14px",
+  color: theme.colors.textPrimary,
+};
+
+const tdStrongStyle: React.CSSProperties = {
+  ...tdStyle,
+  fontWeight: 800,
+};
+
+const rightTdStyle: React.CSSProperties = {
+  ...tdStyle,
+  textAlign: "right",
+  fontVariantNumeric: "tabular-nums",
 };
 
 export default StockMovementsPage;

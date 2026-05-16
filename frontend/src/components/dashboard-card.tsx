@@ -9,7 +9,6 @@ type Props = {
 function DashboardCard({ title, value, subtitle }: Props) {
   return (
     <div style={cardStyle}>
-      <div style={accentBar} />
       <h3 style={titleStyle}>{title}</h3>
       <p style={valueStyle}>{value}</p>
       <p style={subtitleStyle}>{subtitle}</p>
@@ -21,32 +20,25 @@ const cardStyle: React.CSSProperties = {
   position: "relative",
   background: theme.colors.surface,
   border: `1px solid ${theme.colors.border}`,
-  borderRadius: "12px",
-  padding: "16px",
+  borderRadius: "8px",
+  padding: "18px",
   overflow: "hidden",
   cursor: "default",
-};
-
-const accentBar: React.CSSProperties = {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  width: "100%",
-  height: "4px",
-  background: theme.colors.primary,
+  boxShadow: "0 8px 20px rgba(15, 23, 42, 0.04)",
 };
 
 const titleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: "13px",
   color: theme.colors.textSecondary,
+  fontWeight: 800,
 };
 
 const valueStyle: React.CSSProperties = {
   fontSize: "28px",
-  fontWeight: "bold",
+  fontWeight: 800,
   margin: "10px 0",
-  color: theme.colors.primary,
+  color: theme.colors.textPrimary,
 };
 
 const subtitleStyle: React.CSSProperties = {

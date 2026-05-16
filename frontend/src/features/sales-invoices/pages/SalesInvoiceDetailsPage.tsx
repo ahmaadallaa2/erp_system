@@ -10,6 +10,14 @@ import { listProducts } from "../../products/api/list-products";
 import type { Partner } from "../../partners/types/partner";
 import type { Warehouse } from "../../warehouses/types/warehouse";
 import type { Product } from "../../products/types/product";
+import {
+  EmptyState,
+  ErrorMessage,
+  LoadingState,
+  PageHeader,
+  SectionCard,
+  StatusBadge,
+} from "../../../components/ui/mvp";
 
 function SalesInvoiceDetailsPage() {
   const { id } = useParams();
@@ -187,15 +195,15 @@ function SalesInvoiceDetailsPage() {
   };
 
   if (loading) {
-    return <p>Loading sales invoice...</p>;
+    return <LoadingState label="Loading sales invoice..." />;
   }
 
   if (error) {
-    return <p style={{ color: "red" }}>{error}</p>;
+    return <ErrorMessage message={error} />;
   }
 
   if (!invoice) {
-    return <p>Invoice not found.</p>;
+    return <EmptyState title="Invoice not found" />;
   }
 
   const isPosted = invoice.status === "posted";
@@ -209,15 +217,12 @@ function SalesInvoiceDetailsPage() {
 
   return (
     <main>
-      <div style={headerWrapperStyle}>
-        <div>
-          <h1 style={{ margin: 0 }}>{invoice.invoice_number}</h1>
-          <p style={{ marginTop: "8px", color: "#666" }}>
-            Sales invoice details
-          </p>
-        </div>
-
-        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+      <PageHeader
+        title={invoice.invoice_number}
+        subtitle="Sales invoice details"
+        note="MVP note: sales invoices are treated as credit sales only."
+        actions={
+          <>
           {!isPosted && (
             <button
               type="button"
@@ -233,15 +238,14 @@ function SalesInvoiceDetailsPage() {
             </button>
           )}
 
-          <div style={statusBadgeStyle(invoice.status)}>{invoice.status}</div>
-        </div>
-      </div>
+          <StatusBadge status={invoice.status} />
+          </>
+        }
+      />
 
-      {postError && <div style={errorBoxStyle}>{postError}</div>}
+      <ErrorMessage message={postError} />
 
-      <div style={sectionCardStyle}>
-        <h2 style={sectionTitleStyle}>Invoice Information</h2>
-
+      <SectionCard title="Invoice Information">
         <div style={infoGridStyle}>
           <InfoRow
             label="Customer"
@@ -253,6 +257,10 @@ function SalesInvoiceDetailsPage() {
           />
           <InfoRow label="Date" value={invoice.date} />
           <InfoRow label="Total Amount" value={invoice.total_amount} />
+          <InfoRow
+            label="Accounting Status"
+            value={invoice.journal_entry ? "Journal entry linked" : "No journal entry"}
+          />
         </div>
 
         <div style={{ marginTop: "16px" }}>
@@ -261,12 +269,10 @@ function SalesInvoiceDetailsPage() {
             {invoice.notes || "-"}
           </p>
         </div>
-      </div>
+      </SectionCard>
 
       {!isPosted && (
-        <div style={sectionCardStyle}>
-          <h2 style={sectionTitleStyle}>Add Item</h2>
-
+        <SectionCard title="Add Item">
           <form onSubmit={handleAddItem}>
             <div style={infoGridStyle}>
               <div>
@@ -336,14 +342,12 @@ function SalesInvoiceDetailsPage() {
               </button>
             </div>
           </form>
-        </div>
+        </SectionCard>
       )}
 
-      <div style={sectionCardStyle}>
-        <h2 style={sectionTitleStyle}>Invoice Items</h2>
-
+      <SectionCard title="Invoice Items">
         {invoice.items.length === 0 ? (
-          <p>No items added yet.</p>
+          <EmptyState title="No items added yet" />
         ) : (
           <div
             style={{
@@ -383,7 +387,7 @@ function SalesInvoiceDetailsPage() {
             </table>
           </div>
         )}
-      </div>
+      </SectionCard>
     </main>
   );
 }
@@ -403,27 +407,6 @@ function InfoRow({ label, value }: InfoRowProps) {
     </div>
   );
 }
-
-const headerWrapperStyle: React.CSSProperties = {
-  marginBottom: "20px",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "16px",
-};
-
-const sectionCardStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #ddd",
-  borderRadius: "12px",
-  padding: "20px",
-  marginBottom: "20px",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  marginTop: 0,
-  marginBottom: "16px",
-};
 
 const infoGridStyle: React.CSSProperties = {
   display: "grid",
@@ -487,17 +470,5 @@ const tdStyle: React.CSSProperties = {
   borderBottom: "1px solid #eee",
   fontSize: "14px",
 };
-
-function statusBadgeStyle(status: string): React.CSSProperties {
-  return {
-    padding: "8px 12px",
-    borderRadius: "999px",
-    background: status === "posted" ? "#dcfce7" : "#fef3c7",
-    color: status === "posted" ? "#166534" : "#92400e",
-    fontWeight: 700,
-    textTransform: "capitalize",
-    fontSize: "13px",
-  };
-}
 
 export default SalesInvoiceDetailsPage;
