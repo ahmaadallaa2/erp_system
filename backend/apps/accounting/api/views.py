@@ -248,3 +248,25 @@ class PaymentViewSet(viewsets.ModelViewSet):
         payment.refresh_from_db()
         serializer = self.get_serializer(payment)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Cancel payment",
+        description=(
+            "Cancel a posted payment by creating a reversing journal entry. "
+            "Draft and already cancelled payments are rejected."
+        ),
+        tags=["Payments"],
+        responses={200: PaymentSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel_payment(self, request, pk=None):
+        payment = self.get_object()
+
+        try:
+            PaymentService.cancel_payment(payment)
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+
+        payment.refresh_from_db()
+        serializer = self.get_serializer(payment)
+        return Response(serializer.data, status=status.HTTP_200_OK)

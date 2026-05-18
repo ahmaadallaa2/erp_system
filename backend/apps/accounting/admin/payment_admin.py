@@ -48,6 +48,7 @@ class PaymentAdmin(ModelAdmin):
 
     readonly_fields = (
         'voucher_number',
+        'status',
         'journal_entry',
         'created_at',
         'updated_at',
@@ -55,7 +56,7 @@ class PaymentAdmin(ModelAdmin):
         'updated_by',
     )
 
-    actions = ('action_post_payments',)
+    actions = ('action_post_payments', 'action_cancel_payments')
 
     fieldsets = (
         ('بيانات السند الأساسية', {
@@ -124,12 +125,47 @@ class PaymentAdmin(ModelAdmin):
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
 
+    @admin.action(description='Cancel selected payments')
+    def action_cancel_payments(self, request, queryset):
+        success_count = 0
+
+        for payment in queryset:
+            if payment.status != 'posted':
+                self.message_user(
+                    request,
+                    f"Skipped payment {payment.voucher_number}: not in posted status.",
+                    level=messages.WARNING
+                )
+                continue
+
+            try:
+                PaymentService.cancel_payment(payment)
+                success_count += 1
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f"Failed to cancel payment {payment.voucher_number}: {exc}",
+                    level=messages.ERROR
+                )
+
+        if success_count:
+            self.message_user(
+                request,
+                f"Cancelled {success_count} payment(s) successfully.",
+                level=messages.SUCCESS
+            )
+
     def has_change_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop('delete_selected', None)
+        return actions

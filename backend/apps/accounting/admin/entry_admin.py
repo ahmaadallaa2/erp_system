@@ -74,6 +74,7 @@ class JournalEntryAdmin(ModelAdmin):
 
     readonly_fields = (
         'entry_number',
+        'status',
         'created_at',
         'updated_at',
         'created_by',
@@ -208,3 +209,18 @@ class JournalEntryAdmin(ModelAdmin):
             obj.created_by = request.user
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.status in ('posted', 'cancelled'):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.status in ('posted', 'cancelled'):
+            return False
+        return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop('delete_selected', None)
+        return actions

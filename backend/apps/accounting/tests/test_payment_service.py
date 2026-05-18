@@ -1,10 +1,13 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.core.exceptions import ValidationError
 
 from apps.core.models.company import Company, Branch
 from apps.accounting.models.account import Account
+from apps.accounting.models.entry import JournalEntry, JournalItem
+from apps.accounting.models.journal import Journal
 from apps.accounting.models.payment import Payment
 from apps.accounting.services.chart_of_accounts_seed import (
     seed_standard_chart_of_accounts,
@@ -168,6 +171,151 @@ class PaymentServiceTestCase(TestCase):
         self.assertEqual(cash_line.credit, Decimal("300.00"))
         self.assertIsNone(cash_line.partner)
 
+    def test_cancel_posted_inbound_payment_creates_reversal_journal(self):
+        payment = Payment.objects.create(
+            company=self.company,
+            branch=self.branch,
+            partner=self.customer,
+            payment_type="inbound",
+            payment_method="cash",
+            account=self.cash_account,
+            amount=Decimal("500.00"),
+            status="draft",
+        )
+        PaymentService.post_payment(payment)
+        payment.refresh_from_db()
+        original_entry_id = payment.journal_entry_id
+
+        reversal_entry = PaymentService.cancel_payment(payment)
+
+        payment.refresh_from_db()
+        self.cash_account.refresh_from_db()
+        self.receivable_account.refresh_from_db()
+
+        self.assertEqual(payment.status, "cancelled")
+        self.assertEqual(payment.journal_entry_id, original_entry_id)
+        self.assertEqual(JournalEntry.objects.get(id=original_entry_id).status, "posted")
+        self.assertNotEqual(reversal_entry.id, original_entry_id)
+        self.assertEqual(reversal_entry.status, "posted")
+        self.assertEqual(reversal_entry.reference, f"REV-{payment.voucher_number}")
+        self.assertEqual(self.cash_account.current_balance, Decimal("0.00"))
+        self.assertEqual(self.receivable_account.current_balance, Decimal("0.00"))
+
+        cash_line = reversal_entry.items.get(account=self.cash_account)
+        receivable_line = reversal_entry.items.get(account=self.receivable_account)
+
+        self.assertEqual(cash_line.credit, Decimal("500.00"))
+        self.assertIsNone(cash_line.partner)
+        self.assertEqual(receivable_line.debit, Decimal("500.00"))
+        self.assertEqual(receivable_line.partner, self.customer)
+
+    def test_cancel_posted_outbound_payment_creates_reversal_journal(self):
+        self.create_opening_cash(Decimal("1000.00"))
+        payment = Payment.objects.create(
+            company=self.company,
+            branch=self.branch,
+            partner=self.supplier,
+            payment_type="outbound",
+            payment_method="cash",
+            account=self.cash_account,
+            amount=Decimal("300.00"),
+            status="draft",
+        )
+        PaymentService.post_payment(payment)
+        payment.refresh_from_db()
+        original_entry_id = payment.journal_entry_id
+
+        self.assertEqual(self.cash_account.current_balance, Decimal("700.00"))
+
+        reversal_entry = PaymentService.cancel_payment(payment)
+
+        payment.refresh_from_db()
+        self.cash_account.refresh_from_db()
+        self.payable_account.refresh_from_db()
+
+        self.assertEqual(payment.status, "cancelled")
+        self.assertEqual(payment.journal_entry_id, original_entry_id)
+        self.assertEqual(JournalEntry.objects.get(id=original_entry_id).status, "posted")
+        self.assertEqual(reversal_entry.reference, f"REV-{payment.voucher_number}")
+        self.assertEqual(self.cash_account.current_balance, Decimal("1000.00"))
+        self.assertEqual(self.payable_account.current_balance, Decimal("0.00"))
+
+        payable_line = reversal_entry.items.get(account=self.payable_account)
+        cash_line = reversal_entry.items.get(account=self.cash_account)
+
+        self.assertEqual(payable_line.credit, Decimal("300.00"))
+        self.assertEqual(payable_line.partner, self.supplier)
+        self.assertEqual(cash_line.debit, Decimal("300.00"))
+        self.assertIsNone(cash_line.partner)
+
+    def test_cannot_cancel_draft_payment(self):
+        payment = Payment.objects.create(
+            company=self.company,
+            branch=self.branch,
+            partner=self.customer,
+            payment_type="inbound",
+            payment_method="cash",
+            account=self.cash_account,
+            amount=Decimal("200.00"),
+            status="draft",
+        )
+
+        with self.assertRaises(ValidationError):
+            PaymentService.cancel_payment(payment)
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "draft")
+
+    def test_cannot_cancel_already_cancelled_payment(self):
+        payment = Payment.objects.create(
+            company=self.company,
+            branch=self.branch,
+            partner=self.customer,
+            payment_type="inbound",
+            payment_method="cash",
+            account=self.cash_account,
+            amount=Decimal("200.00"),
+            status="draft",
+        )
+        PaymentService.post_payment(payment)
+        payment.refresh_from_db()
+        PaymentService.cancel_payment(payment)
+        payment.refresh_from_db()
+
+        with self.assertRaises(ValidationError):
+            PaymentService.cancel_payment(payment)
+
+    def test_cancel_rollback_when_reversal_journal_fails(self):
+        payment = Payment.objects.create(
+            company=self.company,
+            branch=self.branch,
+            partner=self.customer,
+            payment_type="inbound",
+            payment_method="cash",
+            account=self.cash_account,
+            amount=Decimal("200.00"),
+            status="draft",
+        )
+        PaymentService.post_payment(payment)
+        payment.refresh_from_db()
+
+        with patch.object(
+            PaymentService,
+            "_create_reversal_journal_entry",
+            side_effect=ValidationError("boom"),
+        ):
+            with self.assertRaises(ValidationError):
+                PaymentService.cancel_payment(payment)
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, "posted")
+        self.assertFalse(
+            JournalEntry.objects.filter(
+                company=self.company,
+                reference=f"REV-{payment.voucher_number}",
+            ).exists()
+        )
+
     def test_cannot_post_non_draft_payment(self):
         payment = Payment.objects.create(
             company=self.company,
@@ -274,3 +422,47 @@ class PaymentServiceTestCase(TestCase):
         self.assertEqual(payable_line.partner, supplier)
         self.assertEqual(payable_line.debit, Decimal("125.00"))
         self.assertIsNone(cash_line.partner)
+
+    def create_opening_cash(self, amount):
+        journal = Journal.objects.create(
+            company=self.company,
+            code="GEN-HELPER",
+            name="General Journal Helper",
+            type="general",
+        )
+
+        seed_entry = JournalEntry.objects.create(
+            company=self.company,
+            journal=journal,
+            date="2026-01-01",
+            reference="OPEN-HELPER",
+            status="draft",
+        )
+
+        JournalItem.objects.create(
+            entry=seed_entry,
+            account=self.cash_account,
+            description="Opening cash",
+            debit=amount,
+            credit=Decimal("0.00"),
+        )
+
+        equity_account = Account.objects.create(
+            company=self.company,
+            code="3001",
+            name="Owner Equity",
+            account_type="equity",
+            normal_balance="credit",
+            is_postable=True,
+        )
+
+        JournalItem.objects.create(
+            entry=seed_entry,
+            account=equity_account,
+            description="Opening equity",
+            debit=Decimal("0.00"),
+            credit=amount,
+        )
+
+        seed_entry.post()
+        return seed_entry

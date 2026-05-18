@@ -1,7 +1,9 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
+from django.utils import timezone
 
+from apps.accounting.models import JournalEntry, JournalItem
 from apps.accounting.services.accounting_service import AccountingService
 from apps.inventory.models import StockTransaction
 from apps.inventory.services.stock_service import StockService
@@ -129,3 +131,115 @@ class PurchaseService:
             for item in items
         )
         return Decimal(stock_value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    @staticmethod
+    @transaction.atomic
+    def cancel_invoice(invoice):
+        if invoice.status == "draft":
+            raise ValueError("Draft purchase invoices cannot be cancelled.")
+
+        if invoice.status == "cancelled":
+            raise ValueError("Purchase invoice is already cancelled.")
+
+        if invoice.status != "posted":
+            raise ValueError("Only posted purchase invoices can be cancelled.")
+
+        if not invoice.journal_entry_id:
+            raise ValueError("Posted purchase invoice has no linked journal entry.")
+
+        original_stock_tx = PurchaseService._get_original_stock_transaction(invoice)
+        reversal_stock_tx = PurchaseService._create_reversal_stock_transaction(
+            invoice=invoice,
+            original_stock_tx=original_stock_tx,
+        )
+        reversal_journal_entry = PurchaseService._create_reversal_journal_entry(invoice)
+
+        invoice.status = "cancelled"
+        invoice.save(update_fields=["status", "updated_at"])
+
+        return {
+            "stock_transaction": reversal_stock_tx,
+            "journal_entry": reversal_journal_entry,
+        }
+
+    @staticmethod
+    def _get_original_stock_transaction(invoice):
+        stock_tx = (
+            StockTransaction.objects
+            .filter(
+                company=invoice.company,
+                transaction_type="IN",
+                status="posted",
+                reference=invoice.invoice_number,
+            )
+            .prefetch_related("items__product")
+            .order_by("-created_at")
+            .first()
+        )
+
+        if not stock_tx:
+            raise ValueError("Original posted stock transaction was not found.")
+
+        return stock_tx
+
+    @staticmethod
+    def _create_reversal_stock_transaction(invoice, original_stock_tx):
+        reversal_stock_tx = StockTransaction.objects.create(
+            company=invoice.company,
+            transaction_type="OUT",
+            source_warehouse=original_stock_tx.source_warehouse,
+            date=timezone.now().date(),
+            reference=f"REV-{invoice.invoice_number}",
+            notes=(
+                f"Reversal of Purchase Invoice: {invoice.invoice_number}; "
+                f"original stock transaction: {original_stock_tx.code}"
+            ),
+        )
+
+        for original_item in original_stock_tx.items.select_related("product"):
+            StockService.create_movement(
+                transaction_obj=reversal_stock_tx,
+                product=original_item.product,
+                quantity=original_item.quantity,
+                unit_cost=original_item.unit_cost,
+                note=f"Reversal of Purchase Invoice {invoice.invoice_number}",
+            )
+
+        StockService.post_transaction(reversal_stock_tx)
+        return reversal_stock_tx
+
+    @staticmethod
+    def _create_reversal_journal_entry(invoice):
+        original_entry = (
+            JournalEntry.objects
+            .select_related("journal", "company")
+            .prefetch_related("items__account", "items__partner")
+            .get(id=invoice.journal_entry_id)
+        )
+
+        if original_entry.status != "posted":
+            raise ValueError("Only posted journal entries can be reversed.")
+
+        reversal_entry = JournalEntry.objects.create(
+            company=original_entry.company,
+            journal=original_entry.journal,
+            date=timezone.now().date(),
+            reference=f"REV-{invoice.invoice_number}",
+            notes=(
+                f"Reversal of Purchase Invoice {invoice.invoice_number}; "
+                f"original journal entry: {original_entry.entry_number}"
+            ),
+        )
+
+        for original_item in original_entry.items.select_related("account", "partner"):
+            JournalItem.objects.create(
+                entry=reversal_entry,
+                account=original_item.account,
+                partner=original_item.partner,
+                description=f"Reversal: {original_item.description}",
+                debit=original_item.credit,
+                credit=original_item.debit,
+            )
+
+        reversal_entry.post()
+        return reversal_entry

@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
@@ -172,6 +174,30 @@ class PurchaseInvoiceViewSet(viewsets.ModelViewSet):
             PurchaseService.post_invoice(invoice)
         except ValueError as exc:
             raise ValidationError(str(exc))
+
+        invoice.refresh_from_db()
+        serializer = self.get_serializer(invoice)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Cancel purchase invoice",
+        description=(
+            "Cancel a posted purchase invoice by creating reversing stock and "
+            "journal entries. Draft and already cancelled invoices are rejected."
+        ),
+        tags=["Purchase Invoices"],
+        responses={200: PurchaseInvoiceSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel_invoice(self, request, pk=None):
+        invoice = self.get_object()
+
+        try:
+            PurchaseService.cancel_invoice(invoice)
+        except ValueError as exc:
+            raise ValidationError(str(exc))
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages)
 
         invoice.refresh_from_db()
         serializer = self.get_serializer(invoice)

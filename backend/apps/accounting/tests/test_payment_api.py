@@ -116,6 +116,22 @@ class PaymentAPITestCase(APITestCase):
         self.assertEqual(payment.status, "posted")
         self.assertIsNotNone(payment.journal_entry_id)
 
+    def test_user_can_cancel_posted_payment(self):
+        payment = self.create_posted_payment()
+        original_entry_id = payment.journal_entry_id
+
+        response = self.client.post(
+            f"{self.list_url}{payment.id}/cancel/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payment.refresh_from_db()
+
+        self.assertEqual(payment.status, "cancelled")
+        self.assertEqual(payment.journal_entry_id, original_entry_id)
+
     def test_posted_payment_cannot_be_edited(self):
         payment = self.create_posted_payment()
 
