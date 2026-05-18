@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from django.db.models import Case, IntegerField, When
+
 from apps.accounting.models.entry import JournalItem
 
 
@@ -13,7 +15,21 @@ class GeneralLedgerReportService:
                 entry__is_deleted=False,
             )
             .select_related("entry", "account", "partner")
-            .order_by("entry__date", "entry__entry_number", "id")
+            .annotate(
+                line_side_order=Case(
+                    When(debit__gt=Decimal("0.00"), then=0),
+                    default=1,
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by(
+                "entry__date",
+                "entry__entry_number",
+                "entry__reference",
+                "line_side_order",
+                "account__code",
+                "id",
+            )
         )
 
         if start_date:

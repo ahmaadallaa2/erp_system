@@ -113,6 +113,10 @@ class GeneralLedgerReportAPITestCase(APITestCase):
         entry_ids = {row["journal_entry_id"] for row in response.data}
 
         self.assertEqual(entry_ids, {str(posted_entry.id)})
+        self.assertEqual(
+            [row["account_code"] for row in response.data],
+            ["1003", "4001"],
+        )
         self.assertEqual(response.data[0]["reference"], "POSTED-1")
         self.assertEqual(response.data[0]["account_code"], "1003")
         self.assertEqual(response.data[0]["account_name"], "Accounts Receivable")

@@ -136,15 +136,23 @@ class PurchaseServiceTestCase(TestCase):
             unit_price=Decimal("120.00"),
         )
 
-        PurchaseService.post_invoice(invoice)
+        stock_tx = PurchaseService.post_invoice(invoice)
         invoice.refresh_from_db()
+        self.product.refresh_from_db()
 
         self.assertEqual(invoice.total_amount, Decimal("270.00"))
         inventory_line = invoice.journal_entry.items.get(account=self.accounts["1004"])
         payable_line = invoice.journal_entry.items.get(account=self.accounts["2001"])
+        movement = stock_tx.items.get(product=self.product)
+        posted_stock_value = movement.quantity * movement.unit_cost
 
+        # commission_percentage is intentionally not included in total_amount yet.
         self.assertEqual(inventory_line.debit, Decimal("270.00"))
         self.assertEqual(payable_line.credit, Decimal("270.00"))
+        self.assertEqual(movement.unit_cost, Decimal("135.00"))
+        self.assertEqual(posted_stock_value, inventory_line.debit)
+        self.assertEqual(self.product.average_cost, Decimal("135.00"))
+        self.assertEqual(invoice.journal_entry.total_debit, invoice.journal_entry.total_credit)
 
     def test_duplicate_posting_does_not_create_duplicate_entries(self):
         invoice = PurchaseInvoice.objects.create(

@@ -1,17 +1,29 @@
 from decimal import Decimal
+from unittest.mock import patch
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.test import TestCase
+from rest_framework import status
+from rest_framework.test import APITestCase
 
 from apps.accounting.models import Account, JournalEntry
 from apps.accounting.services.chart_of_accounts_seed import (
     seed_standard_chart_of_accounts,
 )
 from apps.core.models.company import Company, Branch
-from apps.inventory.models import Category, Unit, Product, Warehouse, StockBalance
+from apps.inventory.models import (
+    Category,
+    Product,
+    StockBalance,
+    StockTransaction,
+    Unit,
+    Warehouse,
+)
 from apps.partners.models import Partner
 from apps.sales.models.sales_invoice import SalesInvoice
 from apps.sales.models.sales_invoice_item import SalesInvoiceItem
 from apps.sales.services.sales_service import SalesService
+from apps.users.models import User
 
 
 class SalesServiceTestCase(TestCase):
@@ -270,3 +282,197 @@ class SalesServiceTestCase(TestCase):
 
         with self.assertRaises(ValueError):
             SalesService.post_invoice(invoice)
+
+    def test_cancel_posted_invoice_restores_stock_and_creates_reversal_journal(self):
+        invoice = self.create_invoice(quantity=Decimal("3.00"))
+        original_stock_tx = SalesService.post_invoice(invoice)
+        invoice.refresh_from_db()
+        original_journal_id = invoice.journal_entry_id
+
+        result = SalesService.cancel_invoice(invoice)
+
+        invoice.refresh_from_db()
+        balance = StockBalance.objects.get(
+            company=self.company,
+            product=self.product,
+            warehouse=self.warehouse,
+        )
+
+        self.assertEqual(invoice.status, "cancelled")
+        self.assertEqual(invoice.journal_entry_id, original_journal_id)
+        self.assertEqual(balance.quantity, Decimal("10.00"))
+
+        original_entry = JournalEntry.objects.get(id=original_journal_id)
+        self.assertEqual(original_entry.status, "posted")
+
+        reversal_entry = result["journal_entry"]
+        self.assertNotEqual(reversal_entry.id, original_journal_id)
+        self.assertEqual(reversal_entry.status, "posted")
+        self.assertEqual(reversal_entry.reference, f"REV-{invoice.invoice_number}")
+        self.assertEqual(reversal_entry.total_debit, reversal_entry.total_credit)
+
+        receivable_line = reversal_entry.items.get(account=self.accounts["1003"])
+        revenue_line = reversal_entry.items.get(account=self.accounts["4001"])
+        cogs_line = reversal_entry.items.get(account=self.accounts["5001"])
+        inventory_line = reversal_entry.items.get(account=self.accounts["1004"])
+
+        self.assertEqual(receivable_line.credit, Decimal("450.00"))
+        self.assertEqual(receivable_line.partner, self.customer)
+        self.assertEqual(revenue_line.debit, Decimal("450.00"))
+        self.assertEqual(cogs_line.credit, Decimal("300.00"))
+        self.assertEqual(inventory_line.debit, Decimal("300.00"))
+
+        reversal_stock_tx = result["stock_transaction"]
+        self.assertIsNotNone(reversal_stock_tx)
+        self.assertEqual(reversal_stock_tx.transaction_type, "IN")
+        self.assertEqual(reversal_stock_tx.status, "posted")
+        self.assertEqual(reversal_stock_tx.reference, f"REV-{invoice.invoice_number}")
+        self.assertEqual(reversal_stock_tx.items.get().quantity, Decimal("3.00"))
+        self.assertEqual(original_stock_tx.status, "posted")
+        self.assertEqual(original_stock_tx.reference, invoice.invoice_number)
+
+    def test_cannot_cancel_draft_invoice(self):
+        invoice = self.create_invoice(quantity=Decimal("1.00"))
+
+        with self.assertRaises(ValueError):
+            SalesService.cancel_invoice(invoice)
+
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, "draft")
+
+    def test_cannot_cancel_already_cancelled_invoice(self):
+        invoice = self.create_invoice(quantity=Decimal("1.00"))
+        SalesService.post_invoice(invoice)
+        invoice.refresh_from_db()
+        SalesService.cancel_invoice(invoice)
+        invoice.refresh_from_db()
+
+        with self.assertRaises(ValueError):
+            SalesService.cancel_invoice(invoice)
+
+    def test_cancel_rollback_when_reversal_journal_fails(self):
+        invoice = self.create_invoice(quantity=Decimal("2.00"))
+        SalesService.post_invoice(invoice)
+        invoice.refresh_from_db()
+
+        with patch.object(
+            SalesService,
+            "_create_reversal_journal_entry",
+            side_effect=DjangoValidationError("boom"),
+        ):
+            with self.assertRaises(DjangoValidationError):
+                SalesService.cancel_invoice(invoice)
+
+        invoice.refresh_from_db()
+        balance = StockBalance.objects.get(
+            company=self.company,
+            product=self.product,
+            warehouse=self.warehouse,
+        )
+
+        self.assertEqual(invoice.status, "posted")
+        self.assertEqual(balance.quantity, Decimal("8.00"))
+        self.assertFalse(
+            StockTransaction.objects.filter(
+                company=self.company,
+                reference=f"REV-{invoice.invoice_number}",
+            ).exists()
+        )
+
+    def create_invoice(self, quantity):
+        invoice = SalesInvoice.objects.create(
+            company=self.company,
+            branch=self.branch,
+            customer=self.customer,
+            warehouse=self.warehouse,
+            status="draft",
+        )
+        SalesInvoiceItem.objects.create(
+            invoice=invoice,
+            product=self.product,
+            quantity=quantity,
+            unit_price=Decimal("150.00"),
+        )
+        return invoice
+
+
+class SalesInvoiceCancelAPITestCase(APITestCase):
+    def setUp(self):
+        self.company = Company.objects.create(name="Test Company")
+        self.branch = Branch.objects.create(
+            company=self.company,
+            name="Main Branch",
+        )
+        seed_standard_chart_of_accounts(self.company)
+
+        self.user = User.objects.create_user(
+            email="user@example.com",
+            password="password",
+            full_name="Test User",
+            company=self.company,
+            branch=self.branch,
+        )
+        self.client.force_authenticate(self.user)
+
+        self.category = Category.objects.create(
+            company=self.company,
+            name="Electronics",
+        )
+        self.unit = Unit.objects.create(
+            name="Piece",
+            short_name="PCS",
+        )
+        self.product = Product.objects.create(
+            company=self.company,
+            category=self.category,
+            unit=self.unit,
+            name="Laptop",
+            product_type="storable",
+            average_cost=Decimal("100.00"),
+            sale_price=Decimal("150.00"),
+        )
+        self.warehouse = Warehouse.objects.create(
+            company=self.company,
+            branch=self.branch,
+            name="Main Warehouse",
+        )
+        self.customer = Partner.objects.create(
+            company=self.company,
+            partner_type="customer",
+            name="Customer A",
+        )
+        StockBalance.objects.create(
+            company=self.company,
+            product=self.product,
+            warehouse=self.warehouse,
+            quantity=Decimal("10.00"),
+            reserved_quantity=Decimal("0.00"),
+        )
+
+    def test_authenticated_user_can_cancel_posted_invoice(self):
+        invoice = SalesInvoice.objects.create(
+            company=self.company,
+            branch=self.branch,
+            customer=self.customer,
+            warehouse=self.warehouse,
+            status="draft",
+        )
+        SalesInvoiceItem.objects.create(
+            invoice=invoice,
+            product=self.product,
+            quantity=Decimal("1.00"),
+            unit_price=Decimal("150.00"),
+        )
+        SalesService.post_invoice(invoice)
+        invoice.refresh_from_db()
+
+        response = self.client.post(
+            f"/api/sales/invoices/{invoice.id}/cancel/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "cancelled")
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, "cancelled")
