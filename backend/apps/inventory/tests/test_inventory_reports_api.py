@@ -7,6 +7,7 @@ from apps.core.models.company import Branch, Company
 from apps.inventory.models import (
     Category,
     Product,
+    StockBalance,
     StockMovement,
     StockTransaction,
     Unit,
@@ -300,3 +301,161 @@ class ProductMovementHistoryReportAPITestCase(APITestCase):
             quantity=Decimal("8.00"),
             unit_cost=Decimal("3.00"),
         )
+
+
+class WarehouseBalanceReportAPITestCase(APITestCase):
+    def setUp(self):
+        self.company = Company.objects.create(name="Test Company")
+        self.branch = Branch.objects.create(company=self.company, name="Main Branch")
+        self.other_company = Company.objects.create(name="Other Company")
+        self.other_branch = Branch.objects.create(
+            company=self.other_company,
+            name="Other Branch",
+        )
+
+        self.user = User.objects.create_user(
+            email="warehouse@example.com",
+            password="password",
+            full_name="Warehouse User",
+            company=self.company,
+            branch=self.branch,
+        )
+
+        self.unit = Unit.objects.create(name="Piece", short_name="PCS")
+        self.category = Category.objects.create(company=self.company, name="Main")
+        self.other_category = Category.objects.create(
+            company=self.other_company,
+            name="Other",
+        )
+
+        self.product = Product.objects.create(
+            company=self.company,
+            category=self.category,
+            unit=self.unit,
+            name="Product A",
+            sku="PROD-A",
+            product_type="storable",
+            average_cost=Decimal("10.00"),
+        )
+        self.product_b = Product.objects.create(
+            company=self.company,
+            category=self.category,
+            unit=self.unit,
+            name="Product B",
+            sku="PROD-B",
+            product_type="storable",
+            average_cost=Decimal("7.50"),
+        )
+        self.other_product = Product.objects.create(
+            company=self.other_company,
+            category=self.other_category,
+            unit=self.unit,
+            name="Other Product",
+            sku="OTHER",
+            product_type="storable",
+            average_cost=Decimal("99.00"),
+        )
+
+        self.warehouse = Warehouse.objects.create(
+            company=self.company,
+            branch=self.branch,
+            name="Main Warehouse",
+        )
+        self.warehouse_b = Warehouse.objects.create(
+            company=self.company,
+            branch=self.branch,
+            name="Secondary Warehouse",
+        )
+        self.other_warehouse = Warehouse.objects.create(
+            company=self.other_company,
+            branch=self.other_branch,
+            name="Other Warehouse",
+        )
+
+        StockBalance.objects.create(
+            company=self.company,
+            product=self.product,
+            warehouse=self.warehouse,
+            quantity=Decimal("5.00"),
+            reorder_point=Decimal("10.00"),
+        )
+        StockBalance.objects.create(
+            company=self.company,
+            product=self.product_b,
+            warehouse=self.warehouse_b,
+            quantity=Decimal("20.00"),
+            reorder_point=Decimal("5.00"),
+        )
+        StockBalance.objects.create(
+            company=self.other_company,
+            product=self.other_product,
+            warehouse=self.other_warehouse,
+            quantity=Decimal("99.00"),
+            reorder_point=Decimal("100.00"),
+        )
+
+        self.url = "/api/inventory/reports/warehouse-balances/"
+
+    def test_authentication_is_required(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_report_returns_company_stock_balances_with_estimated_value(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        row = next(item for item in response.data if item["product_code"] == "PROD-A")
+        self.assertEqual(row["warehouse_id"], str(self.warehouse.id))
+        self.assertEqual(row["warehouse_name"], "Main Warehouse")
+        self.assertEqual(row["product_id"], str(self.product.id))
+        self.assertEqual(row["product_name"], "Product A")
+        self.assertEqual(row["quantity"], "5.00")
+        self.assertEqual(row["reorder_point"], "10.00")
+        self.assertTrue(row["is_low_stock"])
+        self.assertEqual(row["average_cost"], "10.00")
+        self.assertEqual(row["estimated_value"], "50.00")
+
+        product_codes = {item["product_code"] for item in response.data}
+        self.assertNotIn("OTHER", product_codes)
+
+    def test_warehouse_product_and_low_stock_filters_are_applied(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            self.url,
+            {
+                "warehouse": str(self.warehouse.id),
+                "product": str(self.product.id),
+                "low_stock": "true",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["product_code"], "PROD-A")
+        self.assertTrue(response.data[0]["is_low_stock"])
+
+    def test_low_stock_false_returns_non_low_stock_rows(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(self.url, {"low_stock": "false"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["product_code"], "PROD-B")
+        self.assertFalse(response.data[0]["is_low_stock"])
+
+    def test_another_company_filter_is_rejected(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get(
+            self.url,
+            {"warehouse": str(self.other_warehouse.id)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

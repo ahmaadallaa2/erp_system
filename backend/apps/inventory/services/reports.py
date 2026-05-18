@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from apps.inventory.models import StockMovement
+from apps.inventory.models import StockBalance, StockMovement
 
 
 class ProductMovementHistoryReportService:
@@ -135,3 +135,45 @@ class ProductMovementHistoryReportService:
             "unit_cost": movement.unit_cost,
             "notes": movement.note or transaction.notes or transaction.reference,
         }
+
+
+class WarehouseBalanceReportService:
+    @staticmethod
+    def rows(company, warehouse=None, product=None, low_stock=None):
+        queryset = (
+            StockBalance.objects.filter(company=company)
+            .select_related("warehouse", "product")
+            .order_by("warehouse__name", "product__name")
+        )
+
+        if warehouse:
+            queryset = queryset.filter(warehouse=warehouse)
+
+        if product:
+            queryset = queryset.filter(product=product)
+
+        rows = []
+        for balance in queryset:
+            is_low_stock = balance.quantity <= balance.reorder_point
+            if low_stock is True and not is_low_stock:
+                continue
+            if low_stock is False and is_low_stock:
+                continue
+
+            average_cost = balance.product.average_cost
+            rows.append(
+                {
+                    "warehouse_id": balance.warehouse_id,
+                    "warehouse_name": balance.warehouse.name,
+                    "product_id": balance.product_id,
+                    "product_name": balance.product.name,
+                    "product_code": balance.product.sku,
+                    "quantity": balance.quantity,
+                    "reorder_point": balance.reorder_point,
+                    "is_low_stock": is_low_stock,
+                    "average_cost": average_cost,
+                    "estimated_value": balance.quantity * average_cost,
+                }
+            )
+
+        return rows
