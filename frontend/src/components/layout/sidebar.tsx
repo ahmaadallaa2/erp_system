@@ -70,13 +70,17 @@ function Sidebar({ isOpen }: SidebarProps) {
         location.pathname.startsWith("/warehouses") ||
         location.pathname.startsWith("/stock-transactions") ||
         location.pathname.startsWith("/stock-balances") ||
-        location.pathname.startsWith("/stock-movements"),
+        location.pathname.startsWith("/stock-movements") ||
+        location.pathname.startsWith("/product-movements") ||
+        location.pathname.startsWith("/warehouse-balances"),
       items: [
         { to: "/products", label: "المنتجات", icon: "product" },
         { to: "/warehouses", label: "المخازن", icon: "warehouse" },
         { to: "/stock-transactions", label: "حركات المخزون", icon: "transaction" },
         { to: "/stock-balances", label: "أرصدة المخزون", icon: "balance" },
         { to: "/stock-movements", label: "تفاصيل الحركة", icon: "movement" },
+        { to: "/product-movements", label: "تاريخ حركة المنتج", icon: "movement" },
+        { to: "/warehouse-balances", label: "أرصدة المستودعات", icon: "balance" },
       ],
     },
     {
@@ -94,8 +98,22 @@ function Sidebar({ isOpen }: SidebarProps) {
     {
       label: "المحاسبة",
       icon: "accounting",
-      isActive: location.pathname.startsWith("/payments"),
+      isActive:
+        location.pathname.startsWith("/payments") ||
+        location.pathname.startsWith("/general-ledger") ||
+        location.pathname.startsWith("/accounting"),
       items: [{ to: "/payments", label: "المدفوعات", icon: "accounting" }],
+    },
+    {
+      label: "تقارير المحاسبة",
+      icon: "accounting",
+      isActive: location.pathname.startsWith("/general-ledger"),
+      items: [
+        { to: "/general-ledger", label: "دفتر الأستاذ", icon: "accounting" },
+        { label: "ميزان المراجعة", icon: "balance", disabled: true, badge: "قريباً" },
+        { label: "الميزانية العمومية", icon: "balance", disabled: true, badge: "قريباً" },
+        { label: "قائمة الدخل", icon: "transaction", disabled: true, badge: "قريباً" },
+      ],
     },
     {
       label: "AI",
@@ -170,7 +188,9 @@ function SidebarSection({
         label={item.label}
         icon={item.icon}
         isCollapsed={isCollapsed}
-        isActive={isRouteActive(pathname, item.to)}
+        isActive={Boolean(item.to && isRouteActive(pathname, item.to))}
+        disabled={item.disabled}
+        badge={item.badge}
       />
     );
   }
@@ -195,12 +215,14 @@ function SidebarSection({
         <div className="erp-sidebar-submenu-scroll" style={getSubmenuStyle(isCollapsed)}>
           {section.items.map((item) => (
             <SidebarLink
-              key={item.to}
+              key={item.to || item.label}
               to={item.to}
               label={item.label}
               icon={item.icon}
               isCollapsed={isCollapsed}
-              isActive={isRouteActive(pathname, item.to)}
+              isActive={Boolean(item.to && isRouteActive(pathname, item.to))}
+              disabled={item.disabled}
+              badge={item.badge}
             />
           ))}
         </div>
@@ -213,12 +235,31 @@ function SidebarLink({
   to,
   label,
   icon,
+  disabled,
+  badge,
   isCollapsed,
   isActive,
 }: NavItem & {
   isCollapsed: boolean;
   isActive: boolean;
 }) {
+  if (disabled || !to) {
+    return (
+      <div
+        className="erp-sidebar-link"
+        style={getDisabledLinkStyle(isCollapsed)}
+        title={label}
+        aria-disabled="true"
+      >
+        <span style={getIconBoxStyle(false)}>
+          <SidebarIcon name={icon} />
+        </span>
+        {!isCollapsed && <span style={linkLabelStyle}>{label}</span>}
+        {!isCollapsed && badge && <span style={comingSoonBadgeStyle}>{badge}</span>}
+      </div>
+    );
+  }
+
   return (
     <Link
       className="erp-sidebar-link"
@@ -510,6 +551,26 @@ function getLinkStyle(isActive: boolean, isCollapsed: boolean): React.CSSPropert
   };
 }
 
+function getDisabledLinkStyle(isCollapsed: boolean): React.CSSProperties {
+  return {
+    minHeight: "50px",
+    display: "grid",
+    gridTemplateColumns: isCollapsed ? "1fr" : "36px minmax(0, 1fr) auto",
+    alignItems: "center",
+    gap: "12px",
+    padding: isCollapsed ? "7px" : "8px 14px",
+    borderRadius: "14px",
+    border: "1px solid rgba(255,255,255,.04)",
+    borderRight: "4px solid transparent",
+    background: "rgba(255,255,255,.025)",
+    color: "rgba(203, 213, 225, 0.52)",
+    fontSize: "14px",
+    fontWeight: 500,
+    cursor: "not-allowed",
+    opacity: 0.72,
+  };
+}
+
 function getIconBoxStyle(isActive: boolean): React.CSSProperties {
   return {
     width: "36px",
@@ -536,6 +597,17 @@ const linkLabelStyle: React.CSSProperties = {
   textOverflow: "ellipsis",
   whiteSpace: "normal",
   lineHeight: 1.25,
+};
+
+const comingSoonBadgeStyle: React.CSSProperties = {
+  padding: "3px 7px",
+  borderRadius: "999px",
+  background: "rgba(20, 184, 212, 0.12)",
+  color: "#99f6e4",
+  border: "1px solid rgba(153, 246, 228, 0.18)",
+  fontSize: "10px",
+  fontWeight: 800,
+  whiteSpace: "nowrap",
 };
 
 const chevronStyle: React.CSSProperties = {

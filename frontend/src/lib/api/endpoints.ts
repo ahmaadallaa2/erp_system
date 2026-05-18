@@ -17,6 +17,10 @@ export const API_ENDPOINTS = {
     stockTransactions: "/inventory/stock-transactions/",
     stockBalances: "/inventory/stock-balances/",
     stockMovements: "/inventory/stock-movements/",
+    reports: {
+      productMovements: "/inventory/reports/product-movements/",
+      warehouseBalances: "/inventory/reports/warehouse-balances/",
+    },
   },
   purchases: {
     invoices: "/purchases/invoices/",
@@ -30,5 +34,8 @@ export const API_ENDPOINTS = {
     payments: "/accounting/payments/",
     accounts: "/accounting/accounts/",
     journalEntryDetail: (id: string) => `/accounting/journal-entries/${id}/`,
+    reports: {
+      generalLedger: "/accounting/reports/general-ledger/",
+    },
   },
 } as const;

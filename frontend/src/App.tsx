@@ -9,6 +9,8 @@ import WarehousesPage from "./features/warehouses/pages/WarehousesPage";
 import StockTransactionsPage from "./features/stock-transactions/pages/StockTransactionsPage";
 import StockBalancesPage from "./features/stock-balances/pages/StockBalancesPage";
 import StockMovementsPage from "./features/stock-movements/pages/StockMovementsPage";
+import ProductMovementHistoryPage from "./features/inventory/pages/ProductMovementHistoryPage";
+import WarehouseBalancesReportPage from "./features/inventory/pages/WarehouseBalancesReportPage";
 import PurchaseInvoicesPage from "./features/purchase-invoices/pages/PurchaseInvoicesPage";
 import CreatePurchaseInvoicePage from "./features/purchase-invoices/pages/CreatePurchaseInvoicePage";
 import PurchaseInvoiceDetailsPage from "./features/purchase-invoices/pages/PurchaseInvoiceDetailsPage";
@@ -18,6 +20,7 @@ import SalesInvoiceDetailsPage from "./features/sales-invoices/pages/SalesInvoic
 import AiAssistantPage from "./features/ai-assistant/pages/AiAssistantPage";
 import PaymentsPage from "./features/payments/pages/PaymentsPage";
 import JournalEntryDetailPage from "./features/accounting/pages/JournalEntryDetailPage";
+import GeneralLedgerPage from "./features/accounting/pages/GeneralLedgerPage";
 
 function App() {
   return (
@@ -35,6 +38,8 @@ function App() {
             <Route path="/stock-transactions" element={<StockTransactionsPage />} />
             <Route path="/stock-balances" element={<StockBalancesPage />} />
             <Route path="/stock-movements" element={<StockMovementsPage />} />
+            <Route path="/product-movements" element={<ProductMovementHistoryPage />} />
+            <Route path="/warehouse-balances" element={<WarehouseBalancesReportPage />} />
             <Route path="/purchase-invoices" element={<PurchaseInvoicesPage />} />
             <Route path="/purchase-invoices/new" element={<CreatePurchaseInvoicePage />} />
             <Route path="/purchase-invoices/:id" element={<PurchaseInvoiceDetailsPage />} />
@@ -42,6 +47,7 @@ function App() {
             <Route path="/sales-invoices/new" element={<CreateSalesInvoicePage />} />
             <Route path="/sales-invoices/:id" element={<SalesInvoiceDetailsPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
+            <Route path="/general-ledger" element={<GeneralLedgerPage />} />
             <Route path="/accounting/journal-entries/:id" element={<JournalEntryDetailPage />} />
             <Route path="/ai-assistant" element={<AiAssistantPage />} />
           </Route>
