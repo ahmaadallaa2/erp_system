@@ -54,6 +54,7 @@ class SalesInvoiceItemSerializer(serializers.ModelSerializer):
 
 class SalesInvoiceSerializer(serializers.ModelSerializer):
     items = SalesInvoiceItemSerializer(many=True, read_only=True)
+    journal_entry_id = serializers.UUIDField(read_only=True)
 
     class Meta:
         model = SalesInvoice
@@ -68,6 +69,7 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "status",
             "total_amount",
             "journal_entry",
+            "journal_entry_id",
             "notes",
             "items",
             "created_at",
@@ -81,6 +83,7 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "status",
             "total_amount",
             "journal_entry",
+            "journal_entry_id",
             "created_at",
             "updated_at",
         ]

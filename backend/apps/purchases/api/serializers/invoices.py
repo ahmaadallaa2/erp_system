@@ -55,6 +55,7 @@ class PurchaseInvoiceItemSerializer(serializers.ModelSerializer):
 
 class PurchaseInvoiceSerializer(serializers.ModelSerializer):
     items = PurchaseInvoiceItemSerializer(many=True, read_only=True)
+    journal_entry_id = serializers.UUIDField(read_only=True)
 
     class Meta:
         model = PurchaseInvoice
@@ -70,6 +71,7 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "vendor_bill_number",
             "total_amount",
             "journal_entry",
+            "journal_entry_id",
             "shipping_cost",
             "clearance_cost",
             "commission_percentage",
@@ -85,6 +87,7 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "status",
             "total_amount",
             "journal_entry",
+            "journal_entry_id",
             "created_at",
             "updated_at",
         ]

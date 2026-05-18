@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { theme } from "../../styles/theme";
 
 type PageHeaderProps = {
@@ -70,6 +70,84 @@ export function EmptyState({
   );
 }
 
+export function EmptyStateCard({
+  title = "Data not available yet",
+  message,
+}: {
+  title?: string;
+  message?: string;
+}) {
+  return (
+    <div style={emptyStateCardStyle}>
+      <div style={emptyStateIconStyle}>i</div>
+      <strong style={emptyStateCardTitleStyle}>{title}</strong>
+      {message && <p style={emptyStateCardTextStyle}>{message}</p>}
+    </div>
+  );
+}
+
+export function SearchField({
+  id,
+  label = "Search",
+  value,
+  onChange,
+  onSearch,
+  onClear,
+  placeholder,
+}: {
+  id: string;
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSearch: () => void;
+  onClear: () => void;
+  placeholder?: string;
+}) {
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onSearch();
+    }
+  }
+
+  return (
+    <div style={searchFieldGroupStyle}>
+      <label style={searchFieldLabelStyle} htmlFor={id}>
+        {label}
+      </label>
+      <div style={searchInputWrapStyle}>
+        <input
+          id={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          style={searchInputStyle}
+        />
+        {value && (
+          <button type="button" onClick={onClear} style={searchClearButtonStyle} aria-label="Clear search">
+            x
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ClearFiltersButton({
+  onClick,
+  label = "Clear",
+}: {
+  onClick: () => void;
+  label?: string;
+}) {
+  return (
+    <button type="button" onClick={onClick} style={clearFiltersButtonStyle}>
+      {label}
+    </button>
+  );
+}
+
 export function SectionCard({
   title,
   subtitle,
@@ -102,17 +180,31 @@ export function MetricCard({
   value,
   subtitle,
   tone = "neutral",
+  accentColor,
 }: {
   title: string;
   value: string;
   subtitle?: string;
   tone?: StatusTone;
+  accentColor?: string;
 }) {
   const palette = badgePalette[tone];
+  const color = accentColor || palette.color;
 
   return (
-    <div className="erp-card-surface" style={{ ...metricCardStyle, borderTopColor: palette.color }}>
-      <div style={metricTitleStyle}>{title}</div>
+    <div className="erp-card-surface erp-metric-card" style={{ ...metricCardStyle, borderTopColor: color }}>
+      <div style={metricHeaderStyle}>
+        <div style={metricTitleStyle}>{title}</div>
+        <div
+          style={{
+            ...metricIconStyle,
+            background: `${color}14`,
+            borderColor: `${color}33`,
+          }}
+        >
+          <span style={{ ...metricIconDotStyle, background: color }} />
+        </div>
+      </div>
       <div style={metricValueStyle}>{value}</div>
       {subtitle && <div style={metricSubtitleStyle}>{subtitle}</div>}
     </div>
@@ -248,42 +340,45 @@ const badgePalette = {
 };
 
 const pageHeaderStyle: React.CSSProperties = {
-  marginBottom: "26px",
+  marginBottom: "12px",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "space-between",
-  gap: "18px",
+  gap: "12px",
   flexWrap: "wrap",
+  maxWidth: "100%",
+  minWidth: 0,
 };
 
 const pageTitleStyle: React.CSSProperties = {
   margin: 0,
   color: theme.colors.textPrimary,
-  fontSize: "27px",
+  fontSize: "28px",
   fontWeight: 800,
   lineHeight: 1.15,
 };
 
 const pageSubtitleStyle: React.CSSProperties = {
-  margin: "8px 0 0",
+  margin: "2px 0 0",
   color: theme.colors.textSecondary,
-  fontSize: "14px",
-  lineHeight: 1.5,
+  fontSize: "12px",
+  fontWeight: 400,
+  lineHeight: 1.4,
 };
 
 const pageActionsStyle: React.CSSProperties = {
   display: "flex",
-  gap: "10px",
+  gap: "8px",
   alignItems: "center",
   flexWrap: "wrap",
 };
 
 const noteStyle: React.CSSProperties = {
-  marginTop: "12px",
-  padding: "10px 12px",
-  borderRadius: "8px",
+  marginTop: "8px",
+  padding: "8px 10px",
+  borderRadius: "10px",
   border: "1px solid #99f6e4",
-  background: "#f0fdfa",
+  background: "rgba(236, 254, 255, 0.78)",
   color: theme.colors.primaryDark,
   fontSize: "13px",
   fontWeight: 700,
@@ -293,8 +388,8 @@ const badgeStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: "24px",
-  padding: "4px 9px",
+  minHeight: "26px",
+  padding: "5px 10px",
   borderRadius: "999px",
   fontSize: "11px",
   fontWeight: 800,
@@ -303,13 +398,16 @@ const badgeStyle: React.CSSProperties = {
 };
 
 const stateBoxStyle: React.CSSProperties = {
-  background: theme.colors.surface,
-  border: `1px solid ${theme.colors.border}`,
-  borderRadius: "10px",
-  padding: "18px 20px",
+  background:
+    "linear-gradient(145deg, rgba(255,255,255,0.90), rgba(236,254,255,0.54))",
+  border: "1px solid rgba(255, 255, 255, 0.76)",
+  borderRadius: "20px",
+  padding: "16px 18px",
   color: theme.colors.textSecondary,
   fontSize: "14px",
-  boxShadow: "0 8px 22px rgba(15, 23, 42, 0.04)",
+  boxShadow:
+    "0 24px 60px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.88)",
+  backdropFilter: "blur(22px) saturate(140%)",
 };
 
 const errorBoxStyle: React.CSSProperties = {
@@ -324,11 +422,15 @@ const errorBoxStyle: React.CSSProperties = {
 };
 
 const emptyStateStyle: React.CSSProperties = {
-  background: theme.colors.surface,
-  border: "1px dashed #cbd5e1",
-  borderRadius: "12px",
-  padding: "32px",
+  background:
+    "linear-gradient(145deg, rgba(255,255,255,0.88), rgba(248,250,252,0.72))",
+  border: "1px dashed rgba(148, 163, 184, 0.48)",
+  borderRadius: "20px",
+  padding: "24px",
   textAlign: "center",
+  boxShadow:
+    "0 24px 64px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255,255,255,0.9)",
+  backdropFilter: "blur(22px) saturate(140%)",
 };
 
 const emptyTitleStyle: React.CSSProperties = {
@@ -344,12 +446,20 @@ const emptyTextStyle: React.CSSProperties = {
 };
 
 const sectionCardStyle: React.CSSProperties = {
-  background: theme.colors.surface,
-  border: `1px solid ${theme.colors.border}`,
-  borderRadius: "12px",
-  padding: "22px",
-  marginBottom: "22px",
-  boxShadow: "0 10px 28px rgba(15, 23, 42, 0.05)",
+  background:
+    "linear-gradient(145deg, rgba(255,255,255,0.92), rgba(236,254,255,0.42))",
+  border: "1px solid rgba(255, 255, 255, 0.78)",
+  borderRadius: "20px",
+  padding: "18px",
+  marginBottom: 0,
+  boxShadow:
+    "0 18px 42px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255,255,255,0.86)",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  backdropFilter: "blur(24px) saturate(150%)",
+  position: "relative",
+  overflow: "hidden",
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -357,29 +467,63 @@ const sectionHeaderStyle: React.CSSProperties = {
   alignItems: "flex-start",
   justifyContent: "space-between",
   gap: "12px",
-  marginBottom: "16px",
+  marginBottom: "12px",
+  maxWidth: "100%",
+  minWidth: 0,
 };
 
 const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
   color: theme.colors.textPrimary,
-  fontSize: "18px",
+  fontSize: "19px",
   fontWeight: 800,
 };
 
 const sectionSubtitleStyle: React.CSSProperties = {
-  margin: "6px 0 0",
+  margin: "4px 0 0",
   color: theme.colors.textSecondary,
   fontSize: "13px",
 };
 
 const metricCardStyle: React.CSSProperties = {
-  background: theme.colors.surface,
-  border: `1px solid ${theme.colors.border}`,
+  background:
+    "linear-gradient(145deg, rgba(255,255,255,0.94), rgba(236,254,255,0.48))",
+  border: "1px solid rgba(255, 255, 255, 0.82)",
   borderTop: "4px solid",
-  borderRadius: "12px",
-  padding: "18px",
-  boxShadow: "0 10px 24px rgba(15, 23, 42, 0.05)",
+  borderRadius: "20px",
+  padding: "16px",
+  boxShadow:
+    "0 18px 42px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255,255,255,0.9)",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  backdropFilter: "blur(24px) saturate(150%)",
+  position: "relative",
+  overflow: "hidden",
+};
+
+const metricHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "14px",
+};
+
+const metricIconStyle: React.CSSProperties = {
+  width: "38px",
+  height: "38px",
+  borderRadius: "16px",
+  border: "1px solid",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const metricIconDotStyle: React.CSSProperties = {
+  width: "12px",
+  height: "12px",
+  borderRadius: "999px",
 };
 
 const metricTitleStyle: React.CSSProperties = {
@@ -389,9 +533,9 @@ const metricTitleStyle: React.CSSProperties = {
 };
 
 const metricValueStyle: React.CSSProperties = {
-  marginTop: "8px",
+  marginTop: "10px",
   color: theme.colors.textPrimary,
-  fontSize: "28px",
+  fontSize: "32px",
   fontWeight: 900,
   lineHeight: 1.1,
   fontVariantNumeric: "tabular-nums",
@@ -437,4 +581,106 @@ const barTrackStyle: React.CSSProperties = {
 const barFillStyle: React.CSSProperties = {
   height: "100%",
   borderRadius: "999px",
+};
+
+const emptyStateCardStyle: React.CSSProperties = {
+  minHeight: "112px",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  padding: "18px",
+  borderRadius: "20px",
+  border: "1px dashed rgba(148, 163, 184, 0.44)",
+  background:
+    "linear-gradient(145deg, rgba(248, 250, 252, 0.84), rgba(236, 254, 255, 0.50))",
+  color: "#64748b",
+  textAlign: "center",
+  backdropFilter: "blur(18px) saturate(140%)",
+};
+
+const emptyStateIconStyle: React.CSSProperties = {
+  width: "28px",
+  height: "28px",
+  borderRadius: "999px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#ECFEFF",
+  color: "#0891B2",
+  fontSize: "13px",
+  fontWeight: 900,
+};
+
+const emptyStateCardTitleStyle: React.CSSProperties = {
+  color: "#475569",
+  fontSize: "13px",
+};
+
+const emptyStateCardTextStyle: React.CSSProperties = {
+  margin: 0,
+  color: "#94a3b8",
+  fontSize: "12px",
+  lineHeight: 1.5,
+};
+
+const searchFieldGroupStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "6px",
+  minWidth: 0,
+};
+
+const searchFieldLabelStyle: React.CSSProperties = {
+  color: theme.colors.textSecondary,
+  fontSize: "12px",
+  fontWeight: 700,
+};
+
+const searchInputWrapStyle: React.CSSProperties = {
+  position: "relative",
+  minWidth: 0,
+};
+
+const searchInputStyle: React.CSSProperties = {
+  width: "100%",
+  height: "38px",
+  borderRadius: "10px",
+  border: `1px solid ${theme.colors.border}`,
+  background: "#ffffff",
+  padding: "0 34px 0 11px",
+  color: theme.colors.textPrimary,
+  fontSize: "13px",
+  boxSizing: "border-box",
+};
+
+const searchClearButtonStyle: React.CSSProperties = {
+  position: "absolute",
+  insetInlineEnd: "6px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "24px",
+  height: "24px",
+  borderRadius: "8px",
+  border: "none",
+  background: "rgba(148, 163, 184, 0.14)",
+  color: theme.colors.textSecondary,
+  cursor: "pointer",
+  fontSize: "12px",
+  fontWeight: 800,
+  lineHeight: 1,
+};
+
+const clearFiltersButtonStyle: React.CSSProperties = {
+  height: "38px",
+  alignSelf: "end",
+  borderRadius: "10px",
+  border: `1px solid ${theme.colors.border}`,
+  background: "#ffffff",
+  color: theme.colors.textSecondary,
+  padding: "0 12px",
+  fontSize: "12px",
+  fontWeight: 800,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };

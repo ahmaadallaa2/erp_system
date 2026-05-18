@@ -18,6 +18,8 @@ const footerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
+  flexShrink: 0,
+  boxSizing: "border-box",
 };
 
 const versionStyle: React.CSSProperties = {

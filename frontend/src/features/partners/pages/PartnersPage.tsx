@@ -109,9 +109,11 @@ function PartnersPage() {
 
 const tableCardStyle: React.CSSProperties = {
   overflowX: "auto",
-  background: theme.colors.surface,
-  border: `1px solid ${theme.colors.border}`,
-  borderRadius: "8px",
+  background: "linear-gradient(145deg, rgba(255,255,255,0.92), rgba(236,254,255,0.42))",
+  border: "1px solid rgba(255, 255, 255, 0.78)",
+  borderRadius: "28px",
+  boxShadow: "0 28px 72px rgba(15, 23, 42, 0.09), inset 0 1px 0 rgba(255,255,255,0.86)",
+  backdropFilter: "blur(24px) saturate(150%)",
 };
 
 const summaryGridStyle: React.CSSProperties = {
@@ -123,7 +125,8 @@ const summaryGridStyle: React.CSSProperties = {
 
 const tableStyle: React.CSSProperties = {
   width: "100%",
-  borderCollapse: "collapse",
+  borderCollapse: "separate",
+  borderSpacing: 0,
 };
 
 const tableHeadStyle: React.CSSProperties = {

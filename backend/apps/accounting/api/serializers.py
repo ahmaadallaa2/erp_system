@@ -89,6 +89,8 @@ class JournalEntryDetailSerializer(serializers.ModelSerializer):
 
 
 class PaymentSerializer(serializers.ModelSerializer):
+    journal_entry_id = serializers.UUIDField(read_only=True)
+
     class Meta:
         model = Payment
         fields = [
@@ -106,6 +108,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "reference",
             "notes",
             "journal_entry",
+            "journal_entry_id",
             "created_at",
             "updated_at",
         ]
@@ -114,6 +117,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "voucher_number",
             "status",
             "journal_entry",
+            "journal_entry_id",
             "company",
             "branch",
             "created_at",
