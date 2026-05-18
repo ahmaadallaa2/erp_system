@@ -188,7 +188,19 @@ class StockMovementViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        user = self.request.user
         tx = serializer.validated_data["transaction"]
+        product = serializer.validated_data["product"]
+
+        if tx.company_id != user.company_id:
+            raise ValidationError(
+                "Cannot add items to a stock transaction outside your company."
+            )
+
+        if product.company_id != user.company_id:
+            raise ValidationError(
+                "Cannot add a product outside your company."
+            )
 
         if tx.status != "draft":
             raise ValidationError("Cannot add items to a non-draft transaction.")
