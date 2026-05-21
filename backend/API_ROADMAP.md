@@ -13,7 +13,9 @@ Implemented:
   stock balances, and posting.
 - Sales invoices, sales invoice items, and posting.
 - Purchase invoices, purchase invoice items, and posting.
-- Accounting account lookup, payments, and payment posting.
+- Sales and purchase invoice cancellation with reversing stock/journal entries.
+- Accounting account lookup, payments, payment posting, payment cancellation,
+  and journal entry detail drill-down.
 - Dashboard summary API.
 - AI Assistant document APIs.
 - OpenAPI schema, Swagger, and ReDoc.
@@ -24,7 +26,9 @@ Notes:
 - Business logic is implemented in services.
 - Posting endpoints execute the irreversible MVP business flow.
 - Posted documents are intended to be read-only.
-- Reverse/cancel workflows for posted business documents are not implemented.
+- Reverse/cancel workflows are implemented for posted sales invoices, posted
+  purchase invoices, and posted payments. Frontend cancel actions are not yet
+  exposed.
 
 ## Auth
 
@@ -113,6 +117,7 @@ user's company.
 - `PATCH /api/sales/invoices/{id}/`
 - `DELETE /api/sales/invoices/{id}/`
 - `POST /api/sales/invoices/{id}/post/`
+- `POST /api/sales/invoices/{id}/cancel/`
 
 ### Sales Invoice Items
 
@@ -129,6 +134,8 @@ Posting behavior:
 - Debits AR, credits revenue, debits COGS, and credits inventory when stock cost
   exists.
 - Sales invoices are credit-only in the MVP.
+- Cancellation creates reversing stock and journal entries and marks the invoice
+  cancelled.
 
 ## Purchases
 
@@ -140,6 +147,7 @@ Posting behavior:
 - `PATCH /api/purchases/invoices/{id}/`
 - `DELETE /api/purchases/invoices/{id}/`
 - `POST /api/purchases/invoices/{id}/post/`
+- `POST /api/purchases/invoices/{id}/cancel/`
 
 ### Purchase Invoice Items
 
@@ -155,6 +163,8 @@ Posting behavior:
 - Updates weighted average cost.
 - Creates and posts the purchase journal entry.
 - Debits inventory and credits AP.
+- Cancellation creates reversing stock and journal entries and marks the invoice
+  cancelled.
 
 ## Accounting
 
@@ -179,6 +189,7 @@ returned.
 - `PATCH /api/accounting/payments/{id}/`
 - `DELETE /api/accounting/payments/{id}/`
 - `POST /api/accounting/payments/{id}/post/`
+- `POST /api/accounting/payments/{id}/cancel/`
 
 Query parameters:
 
@@ -193,7 +204,15 @@ Posting behavior:
 - Outbound payments debit AP and credit cash/bank.
 - Payments create and link a posted journal entry.
 - Posted payments cannot be updated or deleted.
+- Posted payments can be cancelled with a reversing journal entry.
 - Payment allocation to specific invoices is not implemented.
+
+### Journal Entries
+
+- `GET /api/accounting/journal-entries/{id}/`
+
+Returns company-scoped journal metadata, totals, and debit/credit line items for
+source-document drill-down.
 
 ## AI Assistant
 
@@ -224,6 +243,9 @@ details.
 - Inventory posting and stock balance updates.
 - Sales and purchase posting with journal entries.
 - Payment posting with cash/bank and AR/AP settlement.
+- Payment cancellation with reversing journal entries.
+- Sales and purchase cancellation with reversing stock/journal entries.
+- Journal entry detail API.
 - Chart of accounts seed.
 - Dashboard summary endpoint.
 - AI Assistant APIs.
@@ -231,14 +253,15 @@ details.
 
 ## In Progress
 
-- Accounting visibility and journal drill-down.
+- Frontend cancel actions.
 - Frontend/backend polish around invoice and payment operations.
 - Dashboard expansion.
 
 ## Known Limitations
 
-- Reverse workflow missing.
-- Journal viewer APIs/UI missing for operational drill-down.
+- Frontend cancel actions are missing.
+- Journal entry detail exists for operational drill-down, but full journal
+  browsing UI is missing.
 - Permissions are authenticated/company scoped, not complete role-based access.
 - Branch scoping limitations remain.
 - Inventory valuation is weighted average only.
@@ -255,8 +278,8 @@ details.
 
 ## Critical Missing Features
 
-- Reversal/cancellation entries for posted workflows.
-- Journal entry list/detail API for frontend use.
+- Frontend reversal/cancellation actions.
+- Full journal entry list/browse API and UI.
 - Invoice-level payment allocation and reconciliation.
 - General ledger, trial balance, aged AR/AP, balance sheet, income statement,
   stock card, and inventory valuation reports.
@@ -267,9 +290,8 @@ details.
 
 ### Phase 1: Critical Stabilization
 
-- Add reversal endpoints/services for posted sales, purchases, payments, and
-  stock transactions.
-- Add journal drill-down endpoint for linked source documents.
+- Add frontend actions for posted sales, purchase, and payment reversal.
+- Expand journal drill-down into full journal browsing.
 - Make branch scoping explicit and consistent.
 - Standardize posted-document immutability and validation errors.
 - Expand posting workflow tests.

@@ -14,14 +14,16 @@ Implemented backend domains:
   stock posting, insufficient-stock checks, transfers, and weighted average cost
   updates on inbound stock.
 - Sales invoice workflow with draft invoices, invoice items, posting, stock
-  reduction for stock products, and accounting journal creation.
+  reduction for stock products, accounting journal creation, and cancellation
+  via reversing stock/journal entries.
 - Purchase invoice workflow with draft invoices, invoice items, posting,
   inventory increase, weighted average cost updates, and accounting journal
-  creation.
+  creation, and cancellation via reversing stock/journal entries.
 - Payment workflow with draft inbound/outbound payments, cash/bank selection,
-  posting, and journal creation.
+  posting, journal creation, and cancellation via reversing journal entries.
 - Accounting workflow with chart of accounts, journals, journal entries,
-  journal items, posted-entry immutability, and payment/invoice posting entries.
+  journal items, journal entry detail API, posted-entry immutability, and
+  payment/invoice posting entries.
 - Dashboard API with posted sales, posted purchases, inventory quantity,
   receivable/payable summary, and low-stock count.
 - AI Assistant module for document upload, processing, retrieval comparison, and
@@ -38,6 +40,7 @@ Implemented frontend areas:
 - Sales invoices: list, create draft, details, add items, post.
 - Payments: list, create draft inbound/outbound payment, select cash/bank
   account, post.
+- Journal entry drill-down from posted invoices and payments.
 - AI Assistant page.
 
 ## Accounting Behavior
@@ -72,14 +75,26 @@ Payment posting:
 - Payments settle AR/AP at partner-account balance level only. They are not yet
   allocated to specific invoices.
 
+Reversal behavior:
+
+- Posted sales invoices can be cancelled through the backend/API/admin; this
+  marks the invoice cancelled, creates a reversing journal entry, and restores
+  stock for stock products through an inbound reversal transaction.
+- Posted purchase invoices can be cancelled through the backend/API/admin; this
+  marks the invoice cancelled, creates a reversing journal entry, and removes
+  stock through an outbound reversal transaction.
+- Posted payments can be cancelled through the backend/API/admin; this marks the
+  payment cancelled and creates a reversing journal entry.
+- Frontend operational pages show cancelled status and journal drill-down links,
+  but do not yet expose cancel buttons.
+
 ## Important MVP Limitations
 
 - Sales invoices are credit-only in the MVP. There is no cash sale mode at
   invoice creation.
-- Reverse/cancel workflow is missing for posted sales, purchases, stock
-  transactions, payments, and journals.
-- Journal viewer is missing from the frontend. Invoice/payment detail pages only
-  show whether a journal entry is linked.
+- Frontend cancel actions are not exposed yet; cancellation is available through
+  backend API/admin for sales invoices, purchase invoices, and payments.
+- Journal entry drill-down is detail-only. There is no full journal browser UI.
 - Payment allocation to specific invoices is missing.
 - Permissions are mostly authenticated-user/company scoped, not full role-based
   permissions.
@@ -87,6 +102,14 @@ Payment posting:
 - Inventory valuation is weighted-average only and lacks period close, landed
   cost allocation, valuation layers, and audit reports.
 - Financial and inventory reports are missing beyond the dashboard summary.
+
+## Release Validation
+
+Current same-day submission validation:
+
+- Backend: `python manage.py check` passed with no issues.
+- Backend: `python manage.py test` passed, 120 tests run, 2 skipped.
+- Frontend: `npm.cmd run build` passed.
 
 ## Tech Stack
 

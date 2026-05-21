@@ -2,41 +2,90 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import {
   ComparisonBar,
-  EmptyStateCard,
+  EmptyState,
   ErrorMessage,
   LoadingState,
   MetricCard,
   PageHeader,
   ProgressBar,
   SectionCard,
+  StatusBadge,
   formatNumber,
 } from "../../../components/ui/mvp";
+import { getPayments } from "../../payments/api/payments-api";
+import type { Payment } from "../../payments/types/payment";
+import { listPurchaseInvoices } from "../../purchase-invoices/api/list-purchase-invoices";
+import type { PurchaseInvoice } from "../../purchase-invoices/types/purchase-invoice";
+import { listSalesInvoices } from "../../sales-invoices/api/list-sales-invoices";
+import type { SalesInvoice } from "../../sales-invoices/types/sales-invoice";
+import { listStockBalances } from "../../stock-balances/api/list-stock-balances";
+import type { StockBalance } from "../../stock-balances/types/stock-balance";
 import { theme } from "../../../styles/theme";
 import { getDashboardSummary } from "../api/dashboard-api";
 import type { DashboardSummary } from "../api/dashboard-api";
 
+type SecondaryData = {
+  payments: Payment[];
+  salesInvoices: SalesInvoice[];
+  purchaseInvoices: PurchaseInvoice[];
+  stockBalances: StockBalance[];
+};
+
+const emptySecondaryData: SecondaryData = {
+  payments: [],
+  salesInvoices: [],
+  purchaseInvoices: [],
+  stockBalances: [],
+};
+
 function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [secondaryData, setSecondaryData] = useState<SecondaryData>(emptySecondaryData);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [secondaryLoading, setSecondaryLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [secondaryError, setSecondaryError] = useState("");
 
   useEffect(() => {
-    async function loadStats() {
+    async function loadDashboard() {
       setIsLoading(true);
-      setError(null);
+      setSecondaryLoading(true);
+      setError("");
+      setSecondaryError("");
 
       try {
         const data = await getDashboardSummary();
         setSummary(data);
       } catch (err) {
-        console.error("Dashboard error:", err);
+        console.error("Dashboard summary error:", err);
         setError("تعذر تحميل ملخص لوحة التحكم.");
       } finally {
         setIsLoading(false);
       }
+
+      const [paymentsResult, salesResult, purchasesResult, stockResult] = await Promise.allSettled([
+        getPayments(),
+        listSalesInvoices(),
+        listPurchaseInvoices(),
+        listStockBalances(),
+      ]);
+
+      setSecondaryData({
+        payments: paymentsResult.status === "fulfilled" && Array.isArray(paymentsResult.value) ? paymentsResult.value : [],
+        salesInvoices: salesResult.status === "fulfilled" && Array.isArray(salesResult.value) ? salesResult.value : [],
+        purchaseInvoices:
+          purchasesResult.status === "fulfilled" && Array.isArray(purchasesResult.value) ? purchasesResult.value : [],
+        stockBalances: stockResult.status === "fulfilled" && Array.isArray(stockResult.value) ? stockResult.value : [],
+      });
+
+      if ([paymentsResult, salesResult, purchasesResult, stockResult].some((result) => result.status === "rejected")) {
+        setSecondaryError("بعض مؤشرات التشغيل غير متاحة حالياً، وتم عرض البيانات المتوفرة فقط.");
+      }
+
+      setSecondaryLoading(false);
     }
 
-    loadStats();
+    loadDashboard();
   }, []);
 
   const metrics = useMemo(() => {
@@ -60,78 +109,101 @@ function DashboardPage() {
     };
   }, [summary]);
 
+  const paymentsSummary = useMemo(() => getPaymentsSummary(secondaryData.payments), [secondaryData.payments]);
+  const salesStatus = useMemo(() => getStatusSummary(secondaryData.salesInvoices), [secondaryData.salesInvoices]);
+  const purchaseStatus = useMemo(() => getStatusSummary(secondaryData.purchaseInvoices), [secondaryData.purchaseInvoices]);
+  const lowStockRows = useMemo(
+    () =>
+      secondaryData.stockBalances
+        .filter((balance) => Number(balance.quantity || 0) <= Number(balance.reorder_point || 0))
+        .slice(0, 5),
+    [secondaryData.stockBalances]
+  );
+
   return (
     <main style={pageStyle}>
       <div style={breadcrumbStyle}>
         <strong>لوحة التحكم</strong>
         <span>/</span>
-        <span>النظام</span>
+        <span>الإدارة</span>
       </div>
 
-      <PageHeader title="لوحة التحكم" subtitle="متابعة عمليات الشركة ومؤشرات النشاط الرئيسية" />
+      <PageHeader
+        title="لوحة التحكم"
+        subtitle="متابعة مؤشرات الشركة والعمليات الرئيسية"
+        note={<span>Current period: All time</span>}
+      />
 
-      <ErrorMessage message={error || ""} />
+      <ErrorMessage message={error} />
       {isLoading && <LoadingState label="جاري تحميل ملخص لوحة التحكم..." />}
 
       {!isLoading && !error && (
         <div style={dashboardStackStyle}>
-          <section style={dashboardGridStyle}>
-            <DashboardGridItem span={3}>
-              <MetricCard
-              title="إجمالي المبيعات"
-              value={formatNumber(metrics.totalSales)}
-              subtitle="فواتير المبيعات المرحلة"
-              tone="info"
-              accentColor="#14B8D4"
-              />
-            </DashboardGridItem>
-            <DashboardGridItem span={3}>
-              <MetricCard
-              title="إجمالي المشتريات"
-              value={formatNumber(metrics.totalPurchases)}
-              subtitle="فواتير المشتريات المرحلة"
-              tone="success"
-              accentColor="#10B981"
-              />
-            </DashboardGridItem>
-            <DashboardGridItem span={3}>
-              <MetricCard
-              title="كمية المخزون"
-              value={formatNumber(metrics.inventoryQuantity)}
-              subtitle={`${formatNumber(metrics.inventoryItems)} عناصر مخزنية`}
-              tone="neutral"
-              accentColor="#6366F1"
-              />
-            </DashboardGridItem>
-            <DashboardGridItem span={3}>
-              <MetricCard
-              title="مستحقات العملاء"
-              value={formatNumber(metrics.receivables)}
-              subtitle="رصيد العملاء المفتوح"
-              tone="warning"
-              accentColor="#F59E0B"
-              />
-            </DashboardGridItem>
+          <section style={kpiGridStyle}>
+            <KpiLink to="/sales-invoices">
+              <MetricCard title="إجمالي المبيعات" value={formatNumber(metrics.totalSales)} subtitle="فواتير مبيعات مرحلة" tone="info" accentColor="#14B8D4" />
+            </KpiLink>
+            <KpiLink to="/purchase-invoices">
+              <MetricCard title="إجمالي المشتريات" value={formatNumber(metrics.totalPurchases)} subtitle="فواتير شراء مرحلة" tone="success" accentColor="#10B981" />
+            </KpiLink>
+            <KpiLink to="/payments">
+              <MetricCard title="مستحقات العملاء" value={formatNumber(metrics.receivables)} subtitle="المبيعات ناقص المقبوضات" tone="warning" accentColor="#F59E0B" />
+            </KpiLink>
+            <KpiLink to="/payments">
+              <MetricCard title="مستحقات الموردين" value={formatNumber(metrics.payables)} subtitle="المشتريات ناقص المدفوعات" tone="danger" accentColor="#EF4444" />
+            </KpiLink>
+            <KpiLink to="/stock-balances">
+              <MetricCard title="كمية المخزون" value={formatNumber(metrics.inventoryQuantity)} subtitle={`${formatNumber(metrics.inventoryItems)} منتج مخزني`} tone="neutral" accentColor="#6366F1" />
+            </KpiLink>
+            <KpiLink to="/stock-balances">
+              <MetricCard title="منتجات منخفضة المخزون" value={formatNumber(metrics.lowStockProducts)} subtitle="حسب حد إعادة الطلب" tone={metrics.lowStockProducts > 0 ? "warning" : "success"} accentColor="#F59E0B" />
+            </KpiLink>
+            <div style={grossCardStyle(metrics.grossDifference)}>
+              <span>Gross Difference</span>
+              <strong>{formatNumber(metrics.grossDifference)}</strong>
+              <small>إجمالي المبيعات - إجمالي المشتريات</small>
+            </div>
           </section>
 
+          <ErrorMessage message={secondaryError} />
+          {secondaryLoading && <LoadingState label="جاري تحميل مؤشرات التشغيل..." />}
+
           <section style={dashboardGridStyle}>
-            <DashboardGridItem span={4}>
-              <SectionCard title="النشاط الأخير" subtitle="آخر الحركات والتحديثات">
-                <EmptyStateCard title="البيانات غير متوفرة حالياً" message="سجل النشاط غير متاح في هذه النسخة." />
+            <DashboardGridItem span={6}>
+              <SectionCard title="المبيعات مقابل المشتريات" subtitle="مقارنة إجمالية من ملخص الداشبورد">
+                <ComparisonBar
+                  label="Sales vs Purchases"
+                  leftLabel="المبيعات"
+                  leftValue={metrics.totalSales}
+                  rightLabel="المشتريات"
+                  rightValue={metrics.totalPurchases}
+                />
+              </SectionCard>
+            </DashboardGridItem>
+
+            <DashboardGridItem span={6}>
+              <SectionCard title="المستحقات" subtitle="مقارنة مستحقات العملاء والموردين">
+                <ComparisonBar
+                  label="Receivables vs Payables"
+                  leftLabel="مستحقات العملاء"
+                  leftValue={metrics.receivables}
+                  rightLabel="مستحقات الموردين"
+                  rightValue={metrics.payables}
+                />
               </SectionCard>
             </DashboardGridItem>
 
             <DashboardGridItem span={4}>
-              <SectionCard title="حالة المخزون" subtitle="مستويات المخزون الحالية عبر المخازن">
-                <div style={inventoryHealthStyle}>
+              <SectionCard title="صحة المخزون" subtitle="نسبة المنتجات منخفضة المخزون">
+                <div style={cardStackStyle}>
                   <ProgressBar
-                    label="عناصر أعلى من حد إعادة الطلب"
+                    label="منتجات سليمة"
                     value={Math.max(metrics.inventoryItems - metrics.lowStockProducts, 0)}
                     max={Math.max(metrics.inventoryItems, 1)}
                     tone="success"
                   />
                   <ProgressBar
-                    label="نسبة المخزون المنخفض"
+                    label="منتجات منخفضة"
                     value={metrics.lowStockProducts}
                     max={Math.max(metrics.inventoryItems, 1)}
                     tone={metrics.lowStockProducts > 0 ? "warning" : "success"}
@@ -141,76 +213,75 @@ function DashboardPage() {
             </DashboardGridItem>
 
             <DashboardGridItem span={4}>
-              <SectionCard title="إجمالي المبيعات" subtitle="نظرة عامة على مؤشرات الإيرادات">
-                <ComparisonBar
-                  label="المبيعات مقابل المشتريات"
-                  leftLabel="المبيعات"
-                  leftValue={metrics.totalSales}
-                  rightLabel="المشتريات"
-                  rightValue={metrics.totalPurchases}
-                />
+              <SectionCard title="ملخص المدفوعات" subtitle="من صفحة المدفوعات الحالية">
+                <div style={miniGridStyle}>
+                  <MetricMini label="إجمالي المقبوض" value={paymentsSummary.received} />
+                  <MetricMini label="إجمالي المدفوع" value={paymentsSummary.paid} />
+                  <MetricMini label="مسودات" value={paymentsSummary.drafts} />
+                  <MetricMini label="مرحلة" value={paymentsSummary.posted} />
+                </div>
               </SectionCard>
             </DashboardGridItem>
 
             <DashboardGridItem span={4}>
-              <SectionCard title="إجراءات سريعة" subtitle="العمليات الأكثر استخداماً">
+              <SectionCard title="إجراءات سريعة" subtitle="اختصارات تشغيلية">
                 <div style={quickActionsGridStyle}>
-                  <QuickAction to="/sales-invoices" label="فواتير المبيعات" />
-                  <QuickAction to="/purchase-invoices" label="فواتير المشتريات" />
+                  <QuickAction to="/sales-invoices/new" label="فاتورة مبيعات جديدة" />
+                  <QuickAction to="/purchase-invoices/new" label="فاتورة شراء جديدة" />
                   <QuickAction to="/payments" label="المدفوعات" />
-                  <QuickAction to="/stock-transactions" label="حركات المخزون" />
+                  <QuickAction to="/products" label="المنتجات" />
+                  <QuickAction to="/stock-balances" label="أرصدة المخزون" />
+                  <QuickAction to="/general-ledger" label="دفتر الأستاذ" />
                 </div>
               </SectionCard>
             </DashboardGridItem>
 
             <DashboardGridItem span={4}>
-              <SectionCard title="المدفوعات المعلقة" subtitle="الفواتير والمدفوعات المستحقة">
-                <div style={paymentSummaryStyle}>
-                  <MetricMini label="مستحقات العملاء" value={metrics.receivables} />
-                  <MetricMini label="مستحقات الموردين" value={metrics.payables} />
-                </div>
+              <SectionCard title="حالة فواتير المبيعات" subtitle="تجميع من فواتير المبيعات">
+                <StatusSummary draft={salesStatus.draft} posted={salesStatus.posted} cancelled={salesStatus.cancelled} />
               </SectionCard>
             </DashboardGridItem>
 
             <DashboardGridItem span={4}>
-              <SectionCard title="نظرة على المبيعات" subtitle="متابعة أداء المبيعات">
-                <EmptyStateCard
-                  title="البيانات غير متوفرة حالياً"
-                  message="تحليلات المبيعات التفصيلية تحتاج إلى نقطة تقارير لاحقة."
-                />
+              <SectionCard title="حالة فواتير الشراء" subtitle="تجميع من فواتير الشراء">
+                <StatusSummary draft={purchaseStatus.draft} posted={purchaseStatus.posted} cancelled={purchaseStatus.cancelled} />
               </SectionCard>
             </DashboardGridItem>
-          </section>
 
-          <section style={dashboardGridStyle}>
-            <DashboardGridItem span={6}>
-              <SectionCard title="تنبيهات المخزون المنخفض" subtitle="منتجات عند حد إعادة الطلب أو أقل">
-                <div style={alertCardStyle(metrics.lowStockProducts > 0)}>
-                  <div style={alertNumberStyle}>{formatNumber(metrics.lowStockProducts)}</div>
-                  <div>
-                    <strong>
-                      {metrics.lowStockProducts > 0
-                        ? "منتجات تحتاج إلى متابعة"
-                        : "لا توجد منتجات منخفضة المخزون"}
-                    </strong>
-                    <p style={alertTextStyle}>هذه القيمة من ملخص لوحة التحكم الحالي.</p>
+            <DashboardGridItem span={4}>
+              <SectionCard title="تنبيهات المخزون" subtitle="أول 5 منتجات منخفضة حسب الرصيد الحالي">
+                {lowStockRows.length === 0 ? (
+                  <EmptyState title="لا توجد تنبيهات" message="لا توجد أرصدة منخفضة متاحة حالياً." />
+                ) : (
+                  <div style={lowStockListStyle}>
+                    {lowStockRows.map((balance) => (
+                      <Link key={balance.id} to="/stock-balances" style={lowStockRowStyle}>
+                        <div>
+                          <strong>{balance.product}</strong>
+                          <span>{balance.warehouse}</span>
+                        </div>
+                        <div style={lowStockNumbersStyle}>
+                          <strong>{balance.quantity}</strong>
+                          <span>حد الطلب: {balance.reorder_point}</span>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-                </div>
-              </SectionCard>
-            </DashboardGridItem>
-
-            <DashboardGridItem span={6}>
-              <SectionCard title="تحليلات" subtitle="مساحة رسمية للتقارير غير المتاحة">
-                <div style={placeholderGridStyle}>
-                  <EmptyStateCard title="البيانات غير متوفرة حالياً" message="تقرير هامش الربح غير متاح حالياً." />
-                  <EmptyStateCard title="البيانات غير متوفرة حالياً" message="تقرير التحصيل اليومي غير متاح حالياً." />
-                </div>
+                )}
               </SectionCard>
             </DashboardGridItem>
           </section>
         </div>
       )}
     </main>
+  );
+}
+
+function KpiLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return (
+    <Link to={to} style={kpiLinkStyle}>
+      {children}
+    </Link>
   );
 }
 
@@ -232,6 +303,25 @@ function MetricMini({ label, value }: { label: string; value: number }) {
   );
 }
 
+function StatusSummary({ draft, posted, cancelled }: { draft: number; posted: number; cancelled: number }) {
+  return (
+    <div style={statusSummaryStyle}>
+      <StatusLine label="مسودة" value={draft} status="draft" />
+      <StatusLine label="مرحلة" value={posted} status="posted" />
+      <StatusLine label="ملغاة" value={cancelled} status="cancelled" />
+    </div>
+  );
+}
+
+function StatusLine({ label, value, status }: { label: string; value: number; status: string }) {
+  return (
+    <div style={statusLineStyle}>
+      <StatusBadge status={label} tone={status === "posted" ? "success" : status === "cancelled" ? "danger" : "warning"} />
+      <strong>{formatNumber(value)}</strong>
+    </div>
+  );
+}
+
 function DashboardGridItem({
   span,
   children,
@@ -243,6 +333,34 @@ function DashboardGridItem({
     <div className="erp-dashboard-grid-item" style={{ gridColumn: `span ${span}` }}>
       {children}
     </div>
+  );
+}
+
+function getPaymentsSummary(payments: Payment[]) {
+  return payments.reduce(
+    (summary, payment) => {
+      const amount = toNumber(payment.amount);
+
+      if (payment.payment_type === "inbound") summary.received += amount;
+      if (payment.payment_type === "outbound") summary.paid += amount;
+      if (payment.status === "draft") summary.drafts += 1;
+      if (payment.status === "posted") summary.posted += 1;
+
+      return summary;
+    },
+    { received: 0, paid: 0, drafts: 0, posted: 0 }
+  );
+}
+
+function getStatusSummary(items: Array<{ status: string }>) {
+  return items.reduce(
+    (summary, item) => {
+      if (item.status === "draft") summary.draft += 1;
+      if (item.status === "posted") summary.posted += 1;
+      if (item.status === "cancelled") summary.cancelled += 1;
+      return summary;
+    },
+    { draft: 0, posted: 0, cancelled: 0 }
   );
 }
 
@@ -263,7 +381,6 @@ const pageStyle: React.CSSProperties = {
 const breadcrumbStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  justifyContent: "flex-start",
   gap: "8px",
   marginBottom: "4px",
   color: "#64748b",
@@ -272,20 +389,62 @@ const breadcrumbStyle: React.CSSProperties = {
 
 const dashboardStackStyle: React.CSSProperties = {
   display: "grid",
-  gap: "18px",
+  gap: "16px",
+};
+
+const kpiGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+  gap: "14px",
 };
 
 const dashboardGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
-  gap: "18px",
+  gap: "16px",
 };
 
-const inventoryHealthStyle: React.CSSProperties = {
-  minHeight: "108px",
+const kpiLinkStyle: React.CSSProperties = {
+  color: "inherit",
+  textDecoration: "none",
+  minWidth: 0,
+};
+
+function grossCardStyle(value: number): React.CSSProperties {
+  return {
+    background: "linear-gradient(145deg, rgba(255,255,255,0.94), rgba(236,254,255,0.48))",
+    border: "1px solid rgba(255, 255, 255, 0.82)",
+    borderTop: `4px solid ${value >= 0 ? "#10B981" : "#EF4444"}`,
+    borderRadius: "20px",
+    padding: "16px",
+    boxShadow: "0 18px 42px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255,255,255,0.9)",
+    display: "grid",
+    gap: "8px",
+  };
+}
+
+const cardStackStyle: React.CSSProperties = {
   display: "grid",
-  alignContent: "center",
   gap: "14px",
+  minHeight: "118px",
+  alignContent: "center",
+};
+
+const miniGridStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "10px",
+};
+
+const metricMiniStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "16px",
+  padding: "11px 12px",
+  borderRadius: "12px",
+  background: "#f8fafc",
+  border: `1px solid ${theme.colors.border}`,
+  color: "#475569",
+  fontSize: "13px",
 };
 
 const quickActionsGridStyle: React.CSSProperties = {
@@ -317,64 +476,43 @@ const quickActionDotStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const paymentSummaryStyle: React.CSSProperties = {
-  minHeight: "108px",
+const statusSummaryStyle: React.CSSProperties = {
   display: "grid",
   gap: "10px",
-  alignContent: "center",
 };
 
-const metricMiniStyle: React.CSSProperties = {
+const statusLineStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "16px",
+  alignItems: "center",
   padding: "11px 12px",
   borderRadius: "12px",
   background: "#f8fafc",
   border: `1px solid ${theme.colors.border}`,
-  color: "#475569",
-  fontSize: "13px",
 };
 
-function alertCardStyle(hasAlert: boolean): React.CSSProperties {
-  return {
-    minHeight: "108px",
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-    padding: "16px",
-    borderRadius: "12px",
-    border: `1px solid ${hasAlert ? "rgba(245, 158, 11, 0.28)" : "rgba(20, 184, 212, 0.24)"}`,
-    background: hasAlert ? "rgba(245, 158, 11, 0.08)" : "#ECFEFF",
-  };
-}
-
-const alertNumberStyle: React.CSSProperties = {
-  width: "52px",
-  height: "52px",
-  borderRadius: "14px",
-  background: "#ffffff",
-  border: `1px solid ${theme.colors.border}`,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "#020617",
-  fontSize: "22px",
-  fontWeight: 900,
-  flexShrink: 0,
-};
-
-const alertTextStyle: React.CSSProperties = {
-  margin: "6px 0 0",
-  color: "#64748b",
-  fontSize: "13px",
-  lineHeight: 1.6,
-};
-
-const placeholderGridStyle: React.CSSProperties = {
+const lowStockListStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "10px",
+  gap: "8px",
+};
+
+const lowStockRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "12px",
+  padding: "10px 12px",
+  borderRadius: "12px",
+  border: "1px solid rgba(245, 158, 11, 0.22)",
+  background: "rgba(245, 158, 11, 0.07)",
+  color: theme.colors.textPrimary,
+  textDecoration: "none",
+  fontSize: "12px",
+};
+
+const lowStockNumbersStyle: React.CSSProperties = {
+  display: "grid",
+  justifyItems: "end",
+  color: theme.colors.textSecondary,
 };
 
 export default DashboardPage;

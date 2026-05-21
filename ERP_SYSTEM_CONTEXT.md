@@ -130,11 +130,14 @@ Key endpoints:
   `/stock-transactions/`, `/stock-transactions/{id}/post/`,
   `/stock-movements/`, `/stock-balances/`.
 - Sales: `/api/sales/invoices/`, `/api/sales/invoice-items/`,
-  `/api/sales/invoices/{id}/post/`.
+  `/api/sales/invoices/{id}/post/`, `/api/sales/invoices/{id}/cancel/`.
 - Purchases: `/api/purchases/invoices/`,
-  `/api/purchases/invoice-items/`, `/api/purchases/invoices/{id}/post/`.
+  `/api/purchases/invoice-items/`, `/api/purchases/invoices/{id}/post/`,
+  `/api/purchases/invoices/{id}/cancel/`.
 - Accounting: `/api/accounting/accounts/`, `/api/accounting/payments/`,
-  `/api/accounting/payments/{id}/post/`.
+  `/api/accounting/payments/{id}/post/`,
+  `/api/accounting/payments/{id}/cancel/`,
+  `/api/accounting/journal-entries/{id}/`.
 - AI Assistant: document CRUD/processing/query endpoints under
   `/api/ai-assistant/documents/`.
 
@@ -177,11 +180,14 @@ Sales invoice behavior:
 - Service items do not create stock movement.
 - Posting creates a sales journal entry and links it to the invoice.
 - Posted invoices are treated as read-only by service/API/admin behavior.
+- Posted invoices can be cancelled through the backend/API/admin. Cancellation
+  creates a reversing journal entry and restores stock for stock products through
+  an inbound reversal stock transaction.
 
 Current invoice behavior:
 
 - Frontend supports list, create draft, details, add items, and post.
-- Details page shows linked-journal status, not journal lines.
+- Details page links to the journal entry drill-down when a journal entry exists.
 - Sales invoices are credit-only in the MVP. No immediate cash sale, mixed
   payment, invoice payment terms, or allocation workflow exists yet.
 
@@ -198,6 +204,9 @@ Purchase invoice behavior:
 - Inbound stock updates product weighted average cost.
 - Posting creates a purchase journal entry and links it to the invoice.
 - Posted invoices are treated as read-only by service/API/admin behavior.
+- Posted invoices can be cancelled through the backend/API/admin. Cancellation
+  creates a reversing journal entry and removes stock through an outbound
+  reversal stock transaction.
 
 Purchase costing currently posts the invoice total to inventory. Advanced landed
 cost allocation and separate purchase expense treatment are not complete.
@@ -214,6 +223,8 @@ Payment behavior:
 - Posting creates and links a journal entry, then marks the payment `posted`.
 - Posted payments cannot be updated or deleted through the API.
 - Outbound payments validate available balance on the selected cash/bank account.
+- Posted payments can be cancelled through the backend/API/admin. Cancellation
+  creates a reversing journal entry and marks the payment cancelled.
 
 Accounting effect:
 
@@ -287,6 +298,11 @@ Accounting safeguards:
 - Journal items must balance by entry posting rules.
 - Non-postable accounts cannot be used for journal items or payment cash/bank
   account selection.
+- Admin hardening prevents direct changes/deletes to posted or cancelled sales
+  invoices, purchase invoices, payments, journal entries, stock transactions, and
+  their protected line/inlines.
+- Journal entry detail API exposes journal metadata and debit/credit lines for
+  source-document drill-down.
 
 ## Dashboard API
 
@@ -338,6 +354,8 @@ Implemented routes:
 - `/stock-transactions`
 - `/stock-balances`
 - `/stock-movements`
+- `/product-movements`
+- `/warehouse-balances`
 - `/purchase-invoices`
 - `/purchase-invoices/new`
 - `/purchase-invoices/:id`
@@ -345,6 +363,8 @@ Implemented routes:
 - `/sales-invoices/new`
 - `/sales-invoices/:id`
 - `/payments`
+- `/general-ledger`
+- `/accounting/journal-entries/:id`
 - `/ai-assistant`
 
 Shared UI components:
@@ -383,6 +403,8 @@ Payments UI:
 - Supports cash/bank payment method.
 - Loads postable accounts from `/api/accounting/accounts/`.
 - Posts draft payments through `/api/accounting/payments/{id}/post/`.
+- Shows linked journal entries for drill-down.
+- Does not expose cancel buttons yet.
 - Does not allocate payments to invoices.
 
 Invoice UI:
@@ -390,8 +412,8 @@ Invoice UI:
 - Sales and purchase invoice pages support list, create draft, detail, add item,
   and post.
 - Posted invoice detail pages no longer allow adding items.
-- Detail pages show whether a journal entry is linked.
-- There is no journal entry viewer or reversal action.
+- Detail pages link to the journal entry drill-down when a journal entry exists.
+- There is no frontend reversal action.
 - Sales UI explicitly notes the credit-only MVP limitation.
 
 ## Implemented
@@ -403,9 +425,13 @@ Invoice UI:
   movements, posting, and average cost update.
 - Sales invoice posting with stock reduction and full sales accounting entry.
 - Purchase invoice posting with inventory increase and AP accounting entry.
+- Sales and purchase invoice cancellation with reversing stock/journal entries.
 - Chart of accounts seed.
 - Journal, journal entry, and journal item models.
 - Payment model, payment API, and payment posting.
+- Payment cancellation with reversing journal entries.
+- Journal entry detail API and frontend drill-down.
+- Admin hardening for posted/cancelled documents and accounting records.
 - Dashboard summary API and frontend.
 - Frontend routes for dashboard, master data, inventory inquiry, invoices,
   payments, and AI Assistant.
@@ -414,15 +440,16 @@ Invoice UI:
 
 ## In Progress
 
-- Frontend/backend alignment around accounting visibility.
+- Frontend cancel actions for sales, purchases, and payments.
 - Operational UX for payments and invoices.
 - Dashboard as a lightweight executive summary.
 - Stabilizing accounting defaults and standard chart of accounts.
 
 ## Known Limitations
 
-- Reverse workflow is missing for posted documents and journals.
-- Journal viewer is missing from the frontend.
+- Backend/API/admin reversal exists for posted sales invoices, purchase invoices,
+  and payments; frontend cancel actions are not exposed yet.
+- Journal entry drill-down exists, but there is no full journal browser UI.
 - Permissions are not yet full role/permission based.
 - Branch scoping is incomplete.
 - Inventory valuation is weighted-average only and lacks production-grade audit
@@ -441,8 +468,8 @@ Invoice UI:
 - Frontend styling is mostly inline and MVP-oriented.
 - API behavior is covered by focused tests, but end-to-end workflow tests are
   still limited.
-- Accounting APIs expose account lookup and payments, but not complete journal
-  browsing/reporting.
+- Accounting APIs expose account lookup, payments, journal entry detail, and a
+  general ledger report, but not complete journal browsing/reporting.
 - Dashboard receivable/payable values are summary approximations based on
   posted totals minus posted payments, not ledger-aged reports.
 - Branch filtering should be made consistent across APIs.
@@ -450,9 +477,8 @@ Invoice UI:
 
 ## Critical Missing Features
 
-- Reversal/cancellation workflow that creates reversing stock and accounting
-  entries.
-- Journal entry viewer and drill-down from invoices/payments.
+- Frontend reversal/cancellation actions.
+- Full journal entry browser beyond source-document drill-down.
 - Payment allocation/reconciliation against specific invoices.
 - Aged receivables and aged payables reports.
 - General ledger, trial balance, balance sheet, income statement.
@@ -465,9 +491,8 @@ Invoice UI:
 
 ### Phase 1: Critical Stabilization
 
-- Add reversal workflows for sales, purchases, payments, and stock
-  transactions.
-- Add journal drill-down APIs/UI for linked invoice/payment entries.
+- Add frontend reversal actions for sales, purchases, and payments.
+- Expand journal drill-down into a full journal browser.
 - Standardize posted-document immutability and error responses.
 - Complete branch scoping rules for list/detail/dashboard surfaces.
 - Expand workflow tests for sales, purchases, payments, and inventory posting.
@@ -503,6 +528,7 @@ Invoice UI:
 
 Treat the system as an ERP MVP with real posting workflows, not just CRUD.
 Sales, purchases, inventory, payments, accounting, dashboard, and AI Assistant
-are all implemented at MVP level. The biggest functional gaps are reversal,
-journal visibility, payment allocation, reports, permissions, branch scoping, and
-production-grade accounting controls.
+are all implemented at MVP level. Backend/API/admin reversal exists for sales,
+purchases, and payments, and journal drill-down exists. The biggest functional
+gaps are frontend reversal actions, payment allocation, broader reports,
+permissions, branch scoping, and production-grade accounting controls.

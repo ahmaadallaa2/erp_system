@@ -18,6 +18,8 @@ Protected:
 - `/stock-transactions`
 - `/stock-balances`
 - `/stock-movements`
+- `/product-movements`
+- `/warehouse-balances`
 - `/purchase-invoices`
 - `/purchase-invoices/new`
 - `/purchase-invoices/:id`
@@ -25,6 +27,8 @@ Protected:
 - `/sales-invoices/new`
 - `/sales-invoices/:id`
 - `/payments`
+- `/general-ledger`
+- `/accounting/journal-entries/:id`
 - `/ai-assistant`
 
 ## Current Feature Coverage
@@ -41,6 +45,8 @@ Implemented:
 - Purchase invoice list/create/detail/post flow.
 - Sales invoice list/create/detail/post flow.
 - Payments list/create/post flow.
+- General ledger report page.
+- Journal entry drill-down page from posted invoices and payments.
 - AI Assistant page.
 - Shared MVP UI primitives.
 - Auto logout after 30 minutes of inactivity.
@@ -75,12 +81,14 @@ The payments page supports:
 - Cash or bank payment method.
 - Selecting an active postable account from `/api/accounting/accounts/`.
 - Posting draft payments through `/api/accounting/payments/{id}/post/`.
+- Opening linked journal entry detail pages.
 - Summary cards for received, paid, and draft payment counts.
 
 Current limitation:
 
 - Payments are not allocated to specific invoices. Posting settles AR/AP at
   partner-account level only.
+- Cancel buttons are not exposed in the frontend yet.
 
 ## Invoice UI
 
@@ -91,7 +99,7 @@ Sales invoices:
 - View details.
 - Add line items while draft.
 - Post draft invoice.
-- Show linked-journal status.
+- Link to journal entry drill-down when a journal entry exists.
 - Explicitly note that sales invoices are credit-only in the MVP.
 
 Purchase invoices:
@@ -101,12 +109,12 @@ Purchase invoices:
 - View details.
 - Add line items while draft.
 - Post draft invoice.
-- Show linked-journal status.
+- Link to journal entry drill-down when a journal entry exists.
 
 Current invoice limitations:
 
-- No reverse/cancel action.
-- No journal entry viewer.
+- No frontend reverse/cancel action.
+- Journal entry drill-down exists, but there is no full journal browser UI.
 - No payment allocation view.
 - No cash-sale mode for sales invoices.
 
@@ -171,20 +179,22 @@ The frontend currently consumes these API groups:
 - Inventory inquiry pages.
 - Sales and purchase invoice workflows.
 - Payments UI.
+- General ledger report.
+- Journal entry drill-down.
 - AI Assistant page.
 - Auto logout.
 - Shared UI primitives.
 
 ## In Progress
 
-- Accounting visibility on source documents.
+- Frontend cancel actions for sales invoices, purchase invoices, and payments.
 - Dashboard and payment UX refinement.
 - Better operational filtering/search.
 
 ## Known Limitations
 
-- Reverse workflow missing.
-- Journal viewer missing.
+- Frontend reverse/cancel actions are missing.
+- Journal entry drill-down exists, but full journal browsing is missing.
 - Permissions UI is not role-aware.
 - Branch scoping is not visible or consistently enforced in the UI.
 - Inventory valuation reports are missing.
@@ -202,7 +212,7 @@ The frontend currently consumes these API groups:
 
 ## Critical Missing Features
 
-- Journal drill-down pages.
+- Full journal browsing pages beyond source-document drill-down.
 - Invoice payment allocation UI.
 - Reversal/cancellation UI.
 - Accounting reports.
