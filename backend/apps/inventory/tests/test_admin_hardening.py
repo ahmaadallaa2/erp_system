@@ -72,4 +72,6 @@ class StockTransactionAdminHardeningTestCase(TestCase):
         actions = self.model_admin.get_actions(self.request)
 
         self.assertIn("status", readonly_fields)
+        self.assertIn("posted_by", readonly_fields)
+        self.assertIn("posted_at", readonly_fields)
         self.assertNotIn("delete_selected", actions)

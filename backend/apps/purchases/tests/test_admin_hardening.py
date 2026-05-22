@@ -74,6 +74,11 @@ class PurchaseInvoiceAdminHardeningTestCase(TestCase):
         actions = self.model_admin.get_actions(self.request)
 
         self.assertIn("status", readonly_fields)
+        self.assertIn("posted_by", readonly_fields)
+        self.assertIn("posted_at", readonly_fields)
+        self.assertIn("cancelled_by", readonly_fields)
+        self.assertIn("cancelled_at", readonly_fields)
+        self.assertIn("cancellation_reason", readonly_fields)
         self.assertNotIn("delete_selected", actions)
 
     def test_posted_and_cancelled_item_inlines_are_locked(self):

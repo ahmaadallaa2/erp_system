@@ -9,7 +9,7 @@ from apps.accounting.services.accounting_service import AccountingService
 class PaymentService:
     @staticmethod
     @transaction.atomic
-    def post_payment(payment):
+    def post_payment(payment, user=None):
         """
         ترحيل السند المالي:
         - إنشاء القيد المحاسبي عبر AccountingService
@@ -27,13 +27,23 @@ class PaymentService:
 
         payment.journal_entry = entry
         payment.status = 'posted'
-        payment.save(update_fields=['journal_entry', 'status', 'updated_at'])
+        payment.posted_by = user
+        payment.posted_at = timezone.now()
+        payment.save(
+            update_fields=[
+                'journal_entry',
+                'status',
+                'posted_by',
+                'posted_at',
+                'updated_at',
+            ]
+        )
 
         return entry
 
     @staticmethod
     @transaction.atomic
-    def cancel_payment(payment):
+    def cancel_payment(payment, user=None, reason=""):
         if payment.status == "draft":
             raise ValidationError("Draft payments cannot be cancelled.")
 
@@ -49,7 +59,18 @@ class PaymentService:
         reversal_entry = PaymentService._create_reversal_journal_entry(payment)
 
         payment.status = "cancelled"
-        payment.save(update_fields=["status", "updated_at"])
+        payment.cancelled_by = user
+        payment.cancelled_at = timezone.now()
+        payment.cancellation_reason = reason or ""
+        payment.save(
+            update_fields=[
+                "status",
+                "cancelled_by",
+                "cancelled_at",
+                "cancellation_reason",
+                "updated_at",
+            ]
+        )
 
         return reversal_entry
 

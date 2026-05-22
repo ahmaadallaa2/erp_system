@@ -62,6 +62,11 @@ class PaymentAdminHardeningTestCase(TestCase):
         actions = self.model_admin.get_actions(self.request)
 
         self.assertIn("status", readonly_fields)
+        self.assertIn("posted_by", readonly_fields)
+        self.assertIn("posted_at", readonly_fields)
+        self.assertIn("cancelled_by", readonly_fields)
+        self.assertIn("cancelled_at", readonly_fields)
+        self.assertIn("cancellation_reason", readonly_fields)
         self.assertNotIn("delete_selected", actions)
 
     def test_cancel_action_uses_service_and_creates_reversal(self):

@@ -8,6 +8,8 @@ from apps.inventory.services.reports import (
     ProductMovementHistoryReportService,
     WarehouseBalanceReportService,
 )
+from apps.users.api.permissions import IsCompanyMember
+from apps.users.roles import has_company_wide_access
 from ..serializers.reports import (
     ProductMovementHistoryFilterSerializer,
     ProductMovementHistoryRowSerializer,
@@ -17,7 +19,7 @@ from ..serializers.reports import (
 
 
 class ProductMovementHistoryReportAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCompanyMember]
 
     @extend_schema(
         summary="Product movement history report",
@@ -38,6 +40,7 @@ class ProductMovementHistoryReportAPIView(APIView):
 
         rows = ProductMovementHistoryReportService.rows(
             company=request.user.company,
+            branch=None if has_company_wide_access(request.user) else request.user.branch,
             **filter_serializer.validated_data,
         )
         response_serializer = ProductMovementHistoryRowSerializer(rows, many=True)
@@ -45,7 +48,7 @@ class ProductMovementHistoryReportAPIView(APIView):
 
 
 class WarehouseBalanceReportAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCompanyMember]
 
     @extend_schema(
         summary="Warehouse balance report",
@@ -66,6 +69,7 @@ class WarehouseBalanceReportAPIView(APIView):
 
         rows = WarehouseBalanceReportService.rows(
             company=request.user.company,
+            branch=None if has_company_wide_access(request.user) else request.user.branch,
             **filter_serializer.validated_data,
         )
         response_serializer = WarehouseBalanceRowSerializer(rows, many=True)

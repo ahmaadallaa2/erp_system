@@ -16,6 +16,13 @@ from drf_spectacular.utils import (
 from apps.purchases.models.purchase_invoice import PurchaseInvoice
 from apps.purchases.models.purchase_invoice_item import PurchaseInvoiceItem
 from apps.purchases.services.purchase_service import PurchaseService
+from apps.users.api.permissions import (
+    CanCancelPurchaseInvoice,
+    CanPostPurchaseInvoice,
+    HasBranchAccess,
+    IsCompanyMember,
+)
+from apps.users.roles import scope_queryset_to_user_branch
 from ..serializers import PurchaseInvoiceSerializer, PurchaseInvoiceItemSerializer
 
 
@@ -99,6 +106,14 @@ class PurchaseInvoiceViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseInvoiceSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        permission_classes = [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        if self.action == "post_invoice":
+            permission_classes.append(CanPostPurchaseInvoice)
+        elif self.action == "cancel_invoice":
+            permission_classes.append(CanCancelPurchaseInvoice)
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
         user = self.request.user
 
@@ -106,6 +121,7 @@ class PurchaseInvoiceViewSet(viewsets.ModelViewSet):
             is_deleted=False,
             company=user.company,
         ).order_by("-invoice_date", "-id")
+        qs = scope_queryset_to_user_branch(qs, user, "branch_id")
 
         status_param = self.request.query_params.get("status")
         if status_param in ["draft", "posted", "cancelled"]:
@@ -171,7 +187,7 @@ class PurchaseInvoiceViewSet(viewsets.ModelViewSet):
         invoice = self.get_object()
 
         try:
-            PurchaseService.post_invoice(invoice)
+            PurchaseService.post_invoice(invoice, user=request.user)
         except ValueError as exc:
             raise ValidationError(str(exc))
 
@@ -191,9 +207,10 @@ class PurchaseInvoiceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel_invoice(self, request, pk=None):
         invoice = self.get_object()
+        reason = request.data.get("cancellation_reason", "")
 
         try:
-            PurchaseService.cancel_invoice(invoice)
+            PurchaseService.cancel_invoice(invoice, user=request.user, reason=reason)
         except ValueError as exc:
             raise ValidationError(str(exc))
         except DjangoValidationError as exc:
@@ -252,12 +269,19 @@ class PurchaseInvoiceItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseInvoiceItemSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        return [
+            permission()
+            for permission in [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        ]
+
     def get_queryset(self):
         user = self.request.user
 
         qs = PurchaseInvoiceItem.objects.filter(
             invoice__company=user.company
         ).select_related("invoice", "product").order_by("id")
+        qs = scope_queryset_to_user_branch(qs, user, "invoice__branch_id")
 
         invoice_id = self.request.query_params.get("invoice")
         if invoice_id:

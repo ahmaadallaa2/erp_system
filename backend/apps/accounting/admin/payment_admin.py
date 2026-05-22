@@ -50,6 +50,11 @@ class PaymentAdmin(ModelAdmin):
         'voucher_number',
         'status',
         'journal_entry',
+        'posted_by',
+        'posted_at',
+        'cancelled_by',
+        'cancelled_at',
+        'cancellation_reason',
         'created_at',
         'updated_at',
         'created_by',
@@ -73,12 +78,15 @@ class PaymentAdmin(ModelAdmin):
             'fields': (
                 'reference',
                 'notes',
+                'cancellation_reason',
                 'journal_entry',
             )
         }),
         ('سجلات النظام', {
             'classes': ('collapse',),
             'fields': (
+                ('posted_by', 'posted_at'),
+                ('cancelled_by', 'cancelled_at'),
                 ('created_at', 'updated_at'),
                 ('created_by', 'updated_by'),
             )
@@ -103,7 +111,7 @@ class PaymentAdmin(ModelAdmin):
                 continue
 
             try:
-                PaymentService.post_payment(payment)
+                PaymentService.post_payment(payment, user=request.user)
                 success_count += 1
             except Exception as e:
                 self.message_user(
@@ -139,7 +147,7 @@ class PaymentAdmin(ModelAdmin):
                 continue
 
             try:
-                PaymentService.cancel_payment(payment)
+                PaymentService.cancel_payment(payment, user=request.user)
                 success_count += 1
             except Exception as exc:
                 self.message_user(

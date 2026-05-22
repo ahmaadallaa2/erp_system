@@ -272,6 +272,8 @@ class StockTransactionAdmin(ModelAdmin):
     readonly_fields = (
         'code',
         'status',
+        'posted_by',
+        'posted_at',
         'created_at',
         'created_by',
         'updated_at',
@@ -298,7 +300,13 @@ class StockTransactionAdmin(ModelAdmin):
             'fields': ('reference', 'journal_entry', 'notes')
         }),
         ('سجلات النظام', {
-            'fields': ('created_at', 'created_by', 'updated_at', 'updated_by'),
+            'fields': (
+                ('posted_by', 'posted_at'),
+                'created_at',
+                'created_by',
+                'updated_at',
+                'updated_by',
+            ),
             'classes': ('collapse',),
         }),
     )
@@ -311,7 +319,7 @@ class StockTransactionAdmin(ModelAdmin):
         for obj in queryset:
             if obj.status == 'draft':
                 try:
-                    StockService.post_transaction(obj)
+                    StockService.post_transaction(obj, user=request.user)
                     posted_count += 1
                 except Exception as exc:
                     self.message_user(

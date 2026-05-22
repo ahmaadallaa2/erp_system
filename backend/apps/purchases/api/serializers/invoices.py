@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.purchases.models.purchase_invoice import PurchaseInvoice
 from apps.purchases.models.purchase_invoice_item import PurchaseInvoiceItem
+from apps.users.roles import user_can_access_branch_id
 
 
 class PurchaseInvoiceItemSerializer(serializers.ModelSerializer):
@@ -72,6 +73,11 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "total_amount",
             "journal_entry",
             "journal_entry_id",
+            "posted_by",
+            "posted_at",
+            "cancelled_by",
+            "cancelled_at",
+            "cancellation_reason",
             "shipping_cost",
             "clearance_cost",
             "commission_percentage",
@@ -84,10 +90,16 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "id",
             "company",
             "invoice_number",
+            "branch",
             "status",
             "total_amount",
             "journal_entry",
             "journal_entry_id",
+            "posted_by",
+            "posted_at",
+            "cancelled_by",
+            "cancelled_at",
+            "cancellation_reason",
             "created_at",
             "updated_at",
         ]
@@ -117,6 +129,11 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
                 "Selected branch does not belong to the user's company."
             )
 
+        if not user_can_access_branch_id(user, value.id):
+            raise serializers.ValidationError(
+                "Selected branch is outside the user's branch access."
+            )
+
         return value
 
     def validate_warehouse(self, value):
@@ -126,6 +143,11 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
         if user.company and value.company_id != user.company_id:
             raise serializers.ValidationError(
                 "Selected warehouse does not belong to the user's company."
+            )
+
+        if not user_can_access_branch_id(user, value.branch_id):
+            raise serializers.ValidationError(
+                "Selected warehouse is outside the user's branch access."
             )
 
         return value

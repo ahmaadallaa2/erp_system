@@ -12,6 +12,7 @@ from drf_spectacular.utils import (
 from apps.inventory.models.product import Product
 from apps.inventory.models.unit import Unit
 from apps.inventory.models.warehouse import Warehouse
+from apps.users.api.permissions import IsCompanyMember
 from ..serializers import ProductSerializer, UnitSerializer, WarehouseSerializer
 
 
@@ -130,6 +131,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        return [permission() for permission in [IsAuthenticated, IsCompanyMember]]
+
     def get_queryset(self):
         user = self.request.user
 
@@ -220,6 +224,9 @@ class ProductViewSet(viewsets.ModelViewSet):
 class WarehouseViewSet(viewsets.ModelViewSet):
     serializer_class = WarehouseSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        return [permission() for permission in [IsAuthenticated, IsCompanyMember]]
 
     def get_queryset(self):
         user = self.request.user

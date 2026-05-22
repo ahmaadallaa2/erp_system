@@ -24,6 +24,7 @@ from apps.sales.models.sales_invoice import SalesInvoice
 from apps.sales.models.sales_invoice_item import SalesInvoiceItem
 from apps.sales.services.sales_service import SalesService
 from apps.users.models import User
+from apps.users.roles import ROLE_SALES_MANAGER, assign_role
 
 
 class SalesServiceTestCase(TestCase):
@@ -72,6 +73,13 @@ class SalesServiceTestCase(TestCase):
             partner_type="customer",
             name="Customer A"
         )
+        self.user = User.objects.create_user(
+            email="sales-audit@example.com",
+            password="password",
+            full_name="Sales Audit User",
+            company=self.company,
+            branch=self.branch,
+        )
 
         StockBalance.objects.create(
             company=self.company,
@@ -80,6 +88,15 @@ class SalesServiceTestCase(TestCase):
             quantity=Decimal("10.00"),
             reserved_quantity=Decimal("0.00"),
         )
+
+    def test_post_sales_invoice_sets_audit_fields(self):
+        invoice = self.create_invoice(quantity=Decimal("1.00"))
+
+        SalesService.post_invoice(invoice, user=self.user)
+
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.posted_by, self.user)
+        self.assertIsNotNone(invoice.posted_at)
 
     def test_post_sales_invoice_reduces_stock_and_updates_status(self):
         invoice = SalesInvoice.objects.create(
@@ -350,6 +367,24 @@ class SalesServiceTestCase(TestCase):
         with self.assertRaises(ValueError):
             SalesService.cancel_invoice(invoice)
 
+    def test_cancel_sales_invoice_sets_audit_fields(self):
+        invoice = self.create_invoice(quantity=Decimal("1.00"))
+        SalesService.post_invoice(invoice)
+
+        SalesService.cancel_invoice(
+            invoice,
+            user=self.user,
+            reason="Customer requested cancellation",
+        )
+
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.cancelled_by, self.user)
+        self.assertIsNotNone(invoice.cancelled_at)
+        self.assertEqual(
+            invoice.cancellation_reason,
+            "Customer requested cancellation",
+        )
+
     def test_cancel_rollback_when_reversal_journal_fails(self):
         invoice = self.create_invoice(quantity=Decimal("2.00"))
         SalesService.post_invoice(invoice)
@@ -412,6 +447,7 @@ class SalesInvoiceCancelAPITestCase(APITestCase):
             company=self.company,
             branch=self.branch,
         )
+        assign_role(self.user, ROLE_SALES_MANAGER)
         self.client.force_authenticate(self.user)
 
         self.category = Category.objects.create(

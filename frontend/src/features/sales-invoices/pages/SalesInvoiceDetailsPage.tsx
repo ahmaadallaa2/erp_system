@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router";
 import { getSalesInvoice } from "../api/get-sales-invoice";
 import { createSalesInvoiceItem } from "../api/create-sales-invoice-item";
 import { postSalesInvoice } from "../api/post-sales-invoice";
+import { cancelSalesInvoice } from "../api/cancel-sales-invoice";
 import type { SalesInvoice } from "../types/sales-invoice";
 import { listCustomers } from "../../partners/api/list-customers";
 import { listWarehouses } from "../../warehouses/api/list-warehouses";
@@ -33,7 +34,9 @@ function SalesInvoiceDetailsPage() {
   const [savingItem, setSavingItem] = useState(false);
   const [itemError, setItemError] = useState("");
   const [posting, setPosting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [postError, setPostError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
 
   const [product, setProduct] = useState("");
   const [quantity, setQuantity] = useState("1.00");
@@ -176,14 +179,41 @@ function SalesInvoiceDetailsPage() {
     try {
       setPosting(true);
       setPostError("");
+      setActionMessage("");
 
       await postSalesInvoice(id);
       await loadInvoiceData(id);
+      setActionMessage("Invoice posted successfully.");
     } catch (err: any) {
       console.error("Post sales invoice error:", err);
       setPostError(getApiErrorMessage(err));
     } finally {
       setPosting(false);
+    }
+  };
+
+  const handleCancelInvoice = async () => {
+    if (!id || !invoice || invoice.status !== "posted") return;
+
+    const confirmCancel = window.confirm(
+      "Cancel / reverse this posted invoice? The backend will create the reversal and update the invoice status."
+    );
+
+    if (!confirmCancel) return;
+
+    try {
+      setCancelling(true);
+      setPostError("");
+      setActionMessage("");
+
+      await cancelSalesInvoice(id);
+      await loadInvoiceData(id);
+      setActionMessage("Invoice cancelled / reversed successfully.");
+    } catch (err: any) {
+      console.error("Cancel sales invoice error:", err);
+      setPostError(getApiErrorMessage(err));
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -240,12 +270,28 @@ function SalesInvoiceDetailsPage() {
             </button>
           )}
 
+          {isPosted && (
+            <button
+              type="button"
+              onClick={handleCancelInvoice}
+              disabled={cancelling}
+              style={{
+                ...cancelButtonStyle,
+                opacity: cancelling ? 0.7 : 1,
+                cursor: cancelling ? "not-allowed" : "pointer",
+              }}
+            >
+              {cancelling ? "Cancelling..." : "Cancel / Reverse Invoice"}
+            </button>
+          )}
+
           <StatusBadge status={invoice.status} />
           </>
         }
       />
 
       <ErrorMessage message={postError} />
+      {actionMessage && <div style={successBoxStyle}>{actionMessage}</div>}
 
       <SectionCard title="Invoice Information">
         <div style={infoGridStyle}>
@@ -458,6 +504,25 @@ const journalLinkStyle: React.CSSProperties = {
   color: "#0F766E",
   fontWeight: 600,
   textDecoration: "none",
+};
+
+const cancelButtonStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: "8px",
+  border: "1px solid #b91c1c",
+  background: "#fff",
+  color: "#b91c1c",
+  fontWeight: 700,
+};
+
+const successBoxStyle: React.CSSProperties = {
+  marginBottom: "16px",
+  padding: "12px",
+  borderRadius: "8px",
+  background: "#ecfdf5",
+  color: "#047857",
+  border: "1px solid #a7f3d0",
+  fontSize: "14px",
 };
 
 const errorBoxStyle: React.CSSProperties = {

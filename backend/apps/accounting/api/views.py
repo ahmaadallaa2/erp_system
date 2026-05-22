@@ -18,6 +18,13 @@ from apps.accounting.models.account import Account
 from apps.accounting.models.entry import JournalEntry
 from apps.accounting.models.payment import Payment
 from apps.accounting.services.payment_service import PaymentService
+from apps.users.api.permissions import (
+    CanCancelPayment,
+    CanPostPayment,
+    HasBranchAccess,
+    IsCompanyMember,
+)
+from apps.users.roles import scope_queryset_to_user_branch
 from .serializers import (
     AccountLookupSerializer,
     JournalEntryDetailSerializer,
@@ -61,6 +68,9 @@ class AccountLookupViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AccountLookupSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        return [permission() for permission in [IsAuthenticated, IsCompanyMember]]
+
     def get_queryset(self):
         user = self.request.user
 
@@ -97,16 +107,31 @@ class JournalEntryViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     serializer_class = JournalEntryDetailSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        return [
+            permission()
+            for permission in [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        ]
+
     def get_queryset(self):
         user = self.request.user
 
-        return (
+        qs = (
             JournalEntry.objects.filter(
                 is_deleted=False,
                 company=user.company,
             )
             .select_related("journal")
             .prefetch_related("items__account", "items__partner")
+        )
+        return scope_queryset_to_user_branch(
+            qs,
+            user,
+            "linked_payment__branch_id",
+            "sales_invoice__branch_id",
+            "purchase_invoice__branch_id",
+            "stock_transaction__source_warehouse__branch_id",
+            "stock_transaction__destination_warehouse__branch_id",
         )
 
 
@@ -184,6 +209,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        permission_classes = [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        if self.action == "post_payment":
+            permission_classes.append(CanPostPayment)
+        elif self.action == "cancel_payment":
+            permission_classes.append(CanCancelPayment)
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
         user = self.request.user
 
@@ -191,6 +224,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             is_deleted=False,
             company=user.company,
         ).order_by("-date", "-created_at")
+        qs = scope_queryset_to_user_branch(qs, user, "branch_id")
 
         status_param = self.request.query_params.get("status")
         if status_param in ["draft", "posted", "cancelled"]:
@@ -241,7 +275,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             raise ValidationError("Only draft payments can be posted.")
 
         try:
-            PaymentService.post_payment(payment)
+            PaymentService.post_payment(payment, user=request.user)
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
 
@@ -261,9 +295,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel_payment(self, request, pk=None):
         payment = self.get_object()
+        reason = request.data.get("cancellation_reason", "")
 
         try:
-            PaymentService.cancel_payment(payment)
+            PaymentService.cancel_payment(payment, user=request.user, reason=reason)
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
 

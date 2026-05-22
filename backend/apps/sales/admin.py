@@ -73,6 +73,11 @@ class SalesInvoiceAdmin(ModelAdmin):
         'invoice_number',
         'status',
         'total_amount',
+        'posted_by',
+        'posted_at',
+        'cancelled_by',
+        'cancelled_at',
+        'cancellation_reason',
         'created_at',
         'updated_at',
         'created_by',
@@ -93,11 +98,14 @@ class SalesInvoiceAdmin(ModelAdmin):
         ('التفاصيل المالية', {
             'fields': (
                 'total_amount',
+                'cancellation_reason',
                 'notes',
             )
         }),
         ('سجلات النظام', {
             'fields': (
+                ('posted_by', 'posted_at'),
+                ('cancelled_by', 'cancelled_at'),
                 ('created_at', 'updated_at'),
                 ('created_by', 'updated_by'),
             ),
@@ -119,7 +127,7 @@ class SalesInvoiceAdmin(ModelAdmin):
                 continue
 
             try:
-                SalesService.post_invoice(invoice)
+                SalesService.post_invoice(invoice, user=request.user)
                 posted_count += 1
             except Exception as exc:
                 self.message_user(
@@ -155,7 +163,7 @@ class SalesInvoiceAdmin(ModelAdmin):
                 continue
 
             try:
-                SalesService.cancel_invoice(invoice)
+                SalesService.cancel_invoice(invoice, user=request.user)
                 cancelled_count += 1
             except Exception as exc:
                 self.message_user(

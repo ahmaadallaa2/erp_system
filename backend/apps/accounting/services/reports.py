@@ -1,13 +1,20 @@
 from decimal import Decimal
 
-from django.db.models import Case, IntegerField, When
+from django.db.models import Case, IntegerField, Q, When
 
 from apps.accounting.models.entry import JournalItem
 
 
 class GeneralLedgerReportService:
     @staticmethod
-    def rows(company, start_date=None, end_date=None, account=None, partner=None):
+    def rows(
+        company,
+        start_date=None,
+        end_date=None,
+        account=None,
+        partner=None,
+        branch=None,
+    ):
         queryset = (
             JournalItem.objects.filter(
                 entry__company=company,
@@ -43,6 +50,15 @@ class GeneralLedgerReportService:
 
         if partner:
             queryset = queryset.filter(partner=partner)
+
+        if branch:
+            queryset = queryset.filter(
+                Q(entry__linked_payment__branch=branch)
+                | Q(entry__sales_invoice__branch=branch)
+                | Q(entry__purchase_invoice__branch=branch)
+                | Q(entry__stock_transaction__source_warehouse__branch=branch)
+                | Q(entry__stock_transaction__destination_warehouse__branch=branch)
+            ).distinct()
 
         running_balances = {}
         rows = []

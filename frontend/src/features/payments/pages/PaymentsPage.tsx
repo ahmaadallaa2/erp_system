@@ -18,7 +18,7 @@ import { listPartners } from "../../partners/api/list-partners";
 import type { Partner } from "../../partners/types/partner";
 import { getAccounts } from "../api/accounts-api";
 import type { AccountLookup } from "../api/accounts-api";
-import { createPayment, getPayments, postPayment } from "../api/payments-api";
+import { cancelPayment, createPayment, getPayments, postPayment } from "../api/payments-api";
 import type { CreatePaymentPayload, Payment } from "../types/payment";
 
 type StatusFilter = "all" | Payment["status"];
@@ -47,7 +47,9 @@ function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [postingId, setPostingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
   const [query, setQuery] = useState(() => sessionStorage.getItem(searchStorageKey) || "");
   const [draftQuery, setDraftQuery] = useState(() => sessionStorage.getItem(searchStorageKey) || "");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -110,6 +112,7 @@ function PaymentsPage() {
     try {
       setSubmitting(true);
       setError("");
+      setActionMessage("");
 
       await createPayment({
         ...form,
@@ -122,6 +125,7 @@ function PaymentsPage() {
 
       setForm(initialForm);
       await loadPayments();
+      setActionMessage("Payment created successfully.");
     } catch (err) {
       console.error("Payment create error:", err);
       setError(getApiErrorMessage(err));
@@ -134,14 +138,39 @@ function PaymentsPage() {
     try {
       setPostingId(id);
       setError("");
+      setActionMessage("");
 
       await postPayment(id);
       await loadPayments();
+      setActionMessage("Payment posted successfully.");
     } catch (err) {
       console.error("Payment post error:", err);
       setError(getApiErrorMessage(err));
     } finally {
       setPostingId(null);
+    }
+  }
+
+  async function handleCancelPayment(id: string) {
+    const confirmCancel = window.confirm(
+      "Cancel / reverse this posted payment? The backend will update the payment and related journal entry."
+    );
+
+    if (!confirmCancel) return;
+
+    try {
+      setCancellingId(id);
+      setError("");
+      setActionMessage("");
+
+      await cancelPayment(id);
+      await loadPayments();
+      setActionMessage("Payment cancelled / reversed successfully.");
+    } catch (err) {
+      console.error("Payment cancel error:", err);
+      setError(getApiErrorMessage(err));
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -297,6 +326,7 @@ function PaymentsPage() {
       </form>
 
       <ErrorMessage message={error} />
+      {actionMessage && <div style={successBoxStyle}>{actionMessage}</div>}
       {loading && <LoadingState label="جاري تحميل المدفوعات..." />}
 
       {!loading && (
@@ -445,6 +475,20 @@ function PaymentsPage() {
                                   }}
                                 >
                                   {postingId === payment.id ? "جاري الترحيل..." : "ترحيل"}
+                                </button>
+                              )}
+                              {payment.status === "posted" && (
+                                <button
+                                  type="button"
+                                  disabled={cancellingId === payment.id}
+                                  onClick={() => handleCancelPayment(payment.id)}
+                                  style={{
+                                    ...dangerActionStyle,
+                                    opacity: cancellingId === payment.id ? 0.65 : 1,
+                                    cursor: cancellingId === payment.id ? "not-allowed" : "pointer",
+                                  }}
+                                >
+                                  {cancellingId === payment.id ? "Cancelling..." : "Cancel / Reverse"}
                                 </button>
                               )}
                               {payment.journal_entry && (
@@ -813,6 +857,13 @@ const actionButtonStyle: React.CSSProperties = {
   border: `1px solid ${theme.colors.primary}`,
 };
 
+const dangerActionStyle: React.CSSProperties = {
+  ...actionLinkStyle,
+  color: "#b91c1c",
+  background: "#ffffff",
+  border: "1px solid #fecaca",
+};
+
 const disabledActionStyle: React.CSSProperties = {
   ...actionLinkStyle,
   color: theme.colors.textSecondary,
@@ -827,6 +878,16 @@ const tableFooterStyle: React.CSSProperties = {
   fontSize: "12px",
   borderTop: `1px solid ${theme.colors.border}`,
   background: "rgba(248, 250, 252, 0.66)",
+};
+
+const successBoxStyle: React.CSSProperties = {
+  marginBottom: "16px",
+  padding: "12px 14px",
+  borderRadius: "10px",
+  border: "1px solid #a7f3d0",
+  background: "#ecfdf5",
+  color: "#047857",
+  fontSize: "14px",
 };
 
 export default PaymentsPage;

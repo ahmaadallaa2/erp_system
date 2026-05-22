@@ -9,6 +9,7 @@ from apps.accounting.models.journal import Journal
 from apps.core.models.company import Branch, Company
 from apps.partners.models import Partner
 from apps.users.models import User
+from apps.users.roles import ROLE_AUDITOR, assign_role
 
 
 class JournalEntryAPITestCase(APITestCase):
@@ -24,6 +25,7 @@ class JournalEntryAPITestCase(APITestCase):
             company=self.company,
             branch=self.branch,
         )
+        assign_role(self.user, ROLE_AUDITOR)
 
         self.journal = Journal.objects.create(
             company=self.company,

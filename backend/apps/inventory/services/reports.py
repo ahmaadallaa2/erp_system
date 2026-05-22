@@ -12,6 +12,7 @@ class ProductMovementHistoryReportService:
         start_date=None,
         end_date=None,
         transaction_type=None,
+        branch=None,
     ):
         queryset = (
             StockMovement.objects.filter(
@@ -39,19 +40,28 @@ class ProductMovementHistoryReportService:
         if transaction_type:
             queryset = queryset.filter(transaction__transaction_type=transaction_type)
 
+        if branch:
+            queryset = queryset.filter(
+                transaction__source_warehouse__branch=branch
+            ) | queryset.filter(
+                transaction__destination_warehouse__branch=branch
+            )
+            queryset = queryset.distinct()
+
         rows = []
         for movement in queryset:
             rows.extend(
                 ProductMovementHistoryReportService._movement_rows(
                     movement=movement,
                     warehouse=warehouse,
+                    branch=branch,
                 )
             )
 
         return rows
 
     @staticmethod
-    def _movement_rows(movement, warehouse=None):
+    def _movement_rows(movement, warehouse=None, branch=None):
         transaction = movement.transaction
 
         if transaction.transaction_type == "IN":
@@ -65,6 +75,7 @@ class ProductMovementHistoryReportService:
             ] if ProductMovementHistoryReportService._matches_warehouse(
                 transaction.source_warehouse,
                 warehouse,
+                branch,
             ) else []
 
         if transaction.transaction_type == "OUT":
@@ -78,6 +89,7 @@ class ProductMovementHistoryReportService:
             ] if ProductMovementHistoryReportService._matches_warehouse(
                 transaction.source_warehouse,
                 warehouse,
+                branch,
             ) else []
 
         if transaction.transaction_type == "TRANSFER":
@@ -85,6 +97,7 @@ class ProductMovementHistoryReportService:
             if ProductMovementHistoryReportService._matches_warehouse(
                 transaction.source_warehouse,
                 warehouse,
+                branch,
             ):
                 rows.append(
                     ProductMovementHistoryReportService._build_row(
@@ -98,6 +111,7 @@ class ProductMovementHistoryReportService:
             if ProductMovementHistoryReportService._matches_warehouse(
                 transaction.destination_warehouse,
                 warehouse,
+                branch,
             ):
                 rows.append(
                     ProductMovementHistoryReportService._build_row(
@@ -113,8 +127,12 @@ class ProductMovementHistoryReportService:
         return []
 
     @staticmethod
-    def _matches_warehouse(warehouse_obj, warehouse):
-        return warehouse is None or warehouse_obj == warehouse
+    def _matches_warehouse(warehouse_obj, warehouse, branch=None):
+        if warehouse is not None and warehouse_obj != warehouse:
+            return False
+        if branch is not None and warehouse_obj.branch_id != branch.id:
+            return False
+        return True
 
     @staticmethod
     def _build_row(movement, warehouse_obj, quantity_in, quantity_out):
@@ -139,7 +157,7 @@ class ProductMovementHistoryReportService:
 
 class WarehouseBalanceReportService:
     @staticmethod
-    def rows(company, warehouse=None, product=None, low_stock=None):
+    def rows(company, warehouse=None, product=None, low_stock=None, branch=None):
         queryset = (
             StockBalance.objects.filter(company=company)
             .select_related("warehouse", "product")
@@ -148,6 +166,9 @@ class WarehouseBalanceReportService:
 
         if warehouse:
             queryset = queryset.filter(warehouse=warehouse)
+
+        if branch:
+            queryset = queryset.filter(warehouse__branch=branch)
 
         if product:
             queryset = queryset.filter(product=product)

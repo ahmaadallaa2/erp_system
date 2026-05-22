@@ -22,3 +22,11 @@ export async function postPayment(id: string) {
   );
   return response.data;
 }
+
+export async function cancelPayment(id: string) {
+  const response = await api.post<Payment>(
+    `${API_ENDPOINTS.accounting.payments}${id}/cancel/`,
+    {}
+  );
+  return response.data;
+}

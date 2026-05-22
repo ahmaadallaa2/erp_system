@@ -24,6 +24,7 @@ from apps.purchases.models.purchase_invoice import PurchaseInvoice
 from apps.purchases.models.purchase_invoice_item import PurchaseInvoiceItem
 from apps.purchases.services.purchase_service import PurchaseService
 from apps.users.models import User
+from apps.users.roles import ROLE_PURCHASE_MANAGER, assign_role
 
 
 class PurchaseServiceTestCase(TestCase):
@@ -62,6 +63,22 @@ class PurchaseServiceTestCase(TestCase):
             partner_type="supplier",
             name="Supplier A"
         )
+        self.user = User.objects.create_user(
+            email="purchase-audit@example.com",
+            password="password",
+            full_name="Purchase Audit User",
+            company=self.company,
+            branch=self.branch,
+        )
+
+    def test_post_purchase_invoice_sets_audit_fields(self):
+        invoice = self.create_invoice(quantity=Decimal("1.00"))
+
+        PurchaseService.post_invoice(invoice, user=self.user)
+
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.posted_by, self.user)
+        self.assertIsNotNone(invoice.posted_at)
 
     def test_post_purchase_invoice_creates_stock_and_updates_status(self):
         invoice = PurchaseInvoice.objects.create(
@@ -320,6 +337,21 @@ class PurchaseServiceTestCase(TestCase):
         with self.assertRaises(ValueError):
             PurchaseService.cancel_invoice(invoice)
 
+    def test_cancel_purchase_invoice_sets_audit_fields(self):
+        invoice = self.create_invoice(quantity=Decimal("1.00"))
+        PurchaseService.post_invoice(invoice)
+
+        PurchaseService.cancel_invoice(
+            invoice,
+            user=self.user,
+            reason="Supplier bill voided",
+        )
+
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.cancelled_by, self.user)
+        self.assertIsNotNone(invoice.cancelled_at)
+        self.assertEqual(invoice.cancellation_reason, "Supplier bill voided")
+
     def test_cancel_rollback_when_reversal_journal_fails(self):
         invoice = self.create_invoice(quantity=Decimal("2.00"))
         PurchaseService.post_invoice(invoice)
@@ -382,6 +414,7 @@ class PurchaseInvoiceCancelAPITestCase(APITestCase):
             company=self.company,
             branch=self.branch,
         )
+        assign_role(self.user, ROLE_PURCHASE_MANAGER)
         self.client.force_authenticate(self.user)
 
         self.category = Category.objects.create(

@@ -12,7 +12,7 @@ from apps.inventory.services.stock_service import StockService
 class SalesService:
     @staticmethod
     @transaction.atomic
-    def post_invoice(invoice):
+    def post_invoice(invoice, user=None):
         """
         ترحيل فاتورة المبيعات:
         - إنشاء StockTransaction (OUT) للأصناف المخزنية فقط
@@ -65,18 +65,28 @@ class SalesService:
                     note=f"From Sales Invoice {invoice.invoice_number}",
                 )
 
-            StockService.post_transaction(stock_tx)
+            StockService.post_transaction(stock_tx, user=user)
 
         journal_entry = AccountingService.create_sales_invoice_entry(invoice)
         invoice.journal_entry = journal_entry
         invoice.status = "posted"
-        invoice.save(update_fields=["journal_entry", "status", "updated_at"])
+        invoice.posted_by = user
+        invoice.posted_at = timezone.now()
+        invoice.save(
+            update_fields=[
+                "journal_entry",
+                "status",
+                "posted_by",
+                "posted_at",
+                "updated_at",
+            ]
+        )
 
         return stock_tx
 
     @staticmethod
     @transaction.atomic
-    def cancel_invoice(invoice):
+    def cancel_invoice(invoice, user=None, reason=""):
         if invoice.status == "draft":
             raise ValueError("Draft sales invoices cannot be cancelled.")
 
@@ -100,12 +110,24 @@ class SalesService:
             reversal_stock_tx = SalesService._create_reversal_stock_transaction(
                 invoice=invoice,
                 original_stock_tx=original_stock_tx,
+                user=user,
             )
 
         reversal_journal_entry = SalesService._create_reversal_journal_entry(invoice)
 
         invoice.status = "cancelled"
-        invoice.save(update_fields=["status", "updated_at"])
+        invoice.cancelled_by = user
+        invoice.cancelled_at = timezone.now()
+        invoice.cancellation_reason = reason or ""
+        invoice.save(
+            update_fields=[
+                "status",
+                "cancelled_by",
+                "cancelled_at",
+                "cancellation_reason",
+                "updated_at",
+            ]
+        )
 
         return {
             "stock_transaction": reversal_stock_tx,
@@ -133,7 +155,7 @@ class SalesService:
         return stock_tx
 
     @staticmethod
-    def _create_reversal_stock_transaction(invoice, original_stock_tx):
+    def _create_reversal_stock_transaction(invoice, original_stock_tx, user=None):
         reversal_stock_tx = StockTransaction.objects.create(
             company=invoice.company,
             transaction_type="IN",
@@ -155,7 +177,7 @@ class SalesService:
                 note=f"Reversal of Sales Invoice {invoice.invoice_number}",
             )
 
-        StockService.post_transaction(reversal_stock_tx)
+        StockService.post_transaction(reversal_stock_tx, user=user)
         return reversal_stock_tx
 
     @staticmethod

@@ -12,6 +12,7 @@ from apps.inventory.models import (
     StockTransaction,
 )
 from apps.inventory.services.stock_service import StockService
+from apps.users.models import User
 
 
 class StockServiceTestCase(TestCase):
@@ -55,6 +56,32 @@ class StockServiceTestCase(TestCase):
             name="Showroom Warehouse",
             warehouse_type="sub"
         )
+        self.user = User.objects.create_user(
+            email="inventory-audit@example.com",
+            password="password",
+            full_name="Inventory Audit User",
+            company=self.company,
+            branch=self.branch,
+        )
+
+    def test_post_transaction_sets_audit_fields(self):
+        tx = StockTransaction.objects.create(
+            company=self.company,
+            transaction_type="IN",
+            source_warehouse=self.warehouse_1,
+        )
+        StockService.create_movement(
+            transaction_obj=tx,
+            product=self.product,
+            quantity=Decimal("1.00"),
+            unit_cost=Decimal("120.00"),
+        )
+
+        StockService.post_transaction(tx, user=self.user)
+
+        tx.refresh_from_db()
+        self.assertEqual(tx.posted_by, self.user)
+        self.assertIsNotNone(tx.posted_at)
 
     def test_post_in_transaction_increases_stock_and_updates_average_cost(self):
         tx = StockTransaction.objects.create(

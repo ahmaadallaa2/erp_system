@@ -13,6 +13,13 @@ from drf_spectacular.utils import (
 
 from apps.inventory.models import StockTransaction, StockMovement
 from apps.inventory.services.stock_service import StockService
+from apps.users.api.permissions import (
+    CanPostStockTransaction,
+    HasBranchAccess,
+    IsCompanyMember,
+)
+from apps.users.roles import scope_queryset_to_user_branch
+from apps.users.roles import user_can_access_branch_object
 from ..serializers import StockTransactionSerializer, StockMovementSerializer
 
 
@@ -70,12 +77,24 @@ class StockTransactionViewSet(viewsets.ModelViewSet):
     serializer_class = StockTransactionSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        permission_classes = [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        if self.action == "post_transaction":
+            permission_classes.append(CanPostStockTransaction)
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
         user = self.request.user
 
         qs = StockTransaction.objects.filter(
             company=user.company,
         ).order_by("-date", "-created_at")
+        qs = scope_queryset_to_user_branch(
+            qs,
+            user,
+            "source_warehouse__branch_id",
+            "destination_warehouse__branch_id",
+        )
 
         tx_type = self.request.query_params.get("type")
         if tx_type:
@@ -120,7 +139,7 @@ class StockTransactionViewSet(viewsets.ModelViewSet):
         tx = self.get_object()
 
         try:
-            StockService.post_transaction(tx)
+            StockService.post_transaction(tx, user=request.user)
         except ValueError as exc:
             raise ValidationError(str(exc))
 
@@ -174,12 +193,24 @@ class StockMovementViewSet(viewsets.ModelViewSet):
     serializer_class = StockMovementSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        return [
+            permission()
+            for permission in [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        ]
+
     def get_queryset(self):
         user = self.request.user
 
         qs = StockMovement.objects.filter(
             transaction__company=user.company
         ).select_related("transaction", "product")
+        qs = scope_queryset_to_user_branch(
+            qs,
+            user,
+            "transaction__source_warehouse__branch_id",
+            "transaction__destination_warehouse__branch_id",
+        )
 
         tx_id = self.request.query_params.get("transaction")
         if tx_id:
@@ -195,6 +226,11 @@ class StockMovementViewSet(viewsets.ModelViewSet):
         if tx.company_id != user.company_id:
             raise ValidationError(
                 "Cannot add items to a stock transaction outside your company."
+            )
+
+        if not user_can_access_branch_object(user, tx):
+            raise ValidationError(
+                "Cannot add items to a stock transaction outside your branch access."
             )
 
         if product.company_id != user.company_id:

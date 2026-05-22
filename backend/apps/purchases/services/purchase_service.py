@@ -13,7 +13,7 @@ class PurchaseService:
 
     @staticmethod
     @transaction.atomic
-    def post_invoice(invoice):
+    def post_invoice(invoice, user=None):
         """
         ترحيل فاتورة المشتريات:
         - إنشاء StockTransaction (IN)
@@ -68,7 +68,7 @@ class PurchaseService:
         # =====================================
         # 3. ترحيل الحركة (يحدث المخزون والتكلفة)
         # =====================================
-        StockService.post_transaction(stock_tx)
+        StockService.post_transaction(stock_tx, user=user)
 
         # =====================================
         # 4. تحديث حالة الفاتورة
@@ -76,7 +76,17 @@ class PurchaseService:
         journal_entry = AccountingService.create_purchase_invoice_entry(invoice)
         invoice.journal_entry = journal_entry
         invoice.status = 'posted'
-        invoice.save(update_fields=['journal_entry', 'status', 'updated_at'])
+        invoice.posted_by = user
+        invoice.posted_at = timezone.now()
+        invoice.save(
+            update_fields=[
+                'journal_entry',
+                'status',
+                'posted_by',
+                'posted_at',
+                'updated_at',
+            ]
+        )
 
         return stock_tx
 
@@ -134,7 +144,7 @@ class PurchaseService:
 
     @staticmethod
     @transaction.atomic
-    def cancel_invoice(invoice):
+    def cancel_invoice(invoice, user=None, reason=""):
         if invoice.status == "draft":
             raise ValueError("Draft purchase invoices cannot be cancelled.")
 
@@ -151,11 +161,23 @@ class PurchaseService:
         reversal_stock_tx = PurchaseService._create_reversal_stock_transaction(
             invoice=invoice,
             original_stock_tx=original_stock_tx,
+            user=user,
         )
         reversal_journal_entry = PurchaseService._create_reversal_journal_entry(invoice)
 
         invoice.status = "cancelled"
-        invoice.save(update_fields=["status", "updated_at"])
+        invoice.cancelled_by = user
+        invoice.cancelled_at = timezone.now()
+        invoice.cancellation_reason = reason or ""
+        invoice.save(
+            update_fields=[
+                "status",
+                "cancelled_by",
+                "cancelled_at",
+                "cancellation_reason",
+                "updated_at",
+            ]
+        )
 
         return {
             "stock_transaction": reversal_stock_tx,
@@ -183,7 +205,7 @@ class PurchaseService:
         return stock_tx
 
     @staticmethod
-    def _create_reversal_stock_transaction(invoice, original_stock_tx):
+    def _create_reversal_stock_transaction(invoice, original_stock_tx, user=None):
         reversal_stock_tx = StockTransaction.objects.create(
             company=invoice.company,
             transaction_type="OUT",
@@ -205,7 +227,7 @@ class PurchaseService:
                 note=f"Reversal of Purchase Invoice {invoice.invoice_number}",
             )
 
-        StockService.post_transaction(reversal_stock_tx)
+        StockService.post_transaction(reversal_stock_tx, user=user)
         return reversal_stock_tx
 
     @staticmethod

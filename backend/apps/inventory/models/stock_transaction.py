@@ -98,6 +98,16 @@ class StockTransaction(BaseModel):
         verbose_name=_("قيد اليومية المرتبط")
     )
 
+    posted_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="posted_stock_transactions",
+    )
+
+    posted_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         verbose_name = _("حركة مخزنية")
         verbose_name_plural = _("الحركات المخزنية")

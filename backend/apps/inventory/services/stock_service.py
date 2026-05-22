@@ -2,6 +2,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 
 from apps.inventory.models import StockBalance, StockMovement
 
@@ -9,7 +10,7 @@ from apps.inventory.models import StockBalance, StockMovement
 class StockService:
     @staticmethod
     @transaction.atomic
-    def post_transaction(transaction_obj):
+    def post_transaction(transaction_obj, user=None):
         """
         ترحيل الحركة المخزنية:
         - تحديث أرصدة المخزون
@@ -123,7 +124,11 @@ class StockService:
                 raise ValueError(f"Unsupported transaction type: {tx_type}")
 
         transaction_obj.status = 'posted'
-        transaction_obj.save(update_fields=['status', 'updated_at'])
+        transaction_obj.posted_by = user
+        transaction_obj.posted_at = timezone.now()
+        transaction_obj.save(
+            update_fields=['status', 'posted_by', 'posted_at', 'updated_at']
+        )
 
         return transaction_obj
 

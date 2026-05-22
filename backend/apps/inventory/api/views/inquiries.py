@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from apps.inventory.models.stock_balance import StockBalance
+from apps.users.api.permissions import HasBranchAccess, IsCompanyMember
+from apps.users.roles import scope_queryset_to_user_branch
 from ..serializers import StockBalanceSerializer
 
 
@@ -16,6 +18,12 @@ class StockBalanceViewSet(
 ):
     serializer_class = StockBalanceSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        return [
+            permission()
+            for permission in [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        ]
 
     @extend_schema(
         summary="List stock balances",
@@ -65,6 +73,7 @@ class StockBalanceViewSet(
         ).select_related("product", "warehouse").order_by(
             "warehouse__name", "product__name"
         )
+        qs = scope_queryset_to_user_branch(qs, user, "warehouse__branch_id")
 
         product_id = self.request.query_params.get("product")
         if product_id:

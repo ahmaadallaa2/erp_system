@@ -13,6 +13,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.ai_assistant.models import Document
 from apps.ai_assistant.services import DocumentProcessingService, FaissStoreService, QAService
+from apps.users.api.permissions import IsCompanyMember
 from .serializers import (
     AskDocumentRequestSerializer,
     AskDocumentResponseSerializer,
@@ -57,6 +58,9 @@ class DocumentViewSet(
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        return [permission() for permission in [IsAuthenticated, IsCompanyMember]]
 
     def get_serializer_class(self):
         if self.action == "create":

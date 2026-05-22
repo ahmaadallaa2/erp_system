@@ -81,6 +81,28 @@ class SalesInvoice(SoftDeleteModel):
         related_name="sales_invoice",
     )
 
+    posted_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="posted_sales_invoices",
+    )
+
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    cancelled_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_sales_invoices",
+    )
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    cancellation_reason = models.TextField(blank=True)
+
     notes = models.TextField(
         _("ملاحظات"),
         blank=True

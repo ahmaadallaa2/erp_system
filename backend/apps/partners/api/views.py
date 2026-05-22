@@ -12,6 +12,7 @@ from drf_spectacular.utils import (
 )
 
 from apps.partners.models import Partner
+from apps.users.api.permissions import IsCompanyMember
 from .serializers import PartnerSerializer
 
 
@@ -73,6 +74,9 @@ from .serializers import PartnerSerializer
 class PartnerViewSet(viewsets.ModelViewSet):
     serializer_class = PartnerSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        return [permission() for permission in [IsAuthenticated, IsCompanyMember]]
 
     def get_queryset(self):
         user = self.request.user

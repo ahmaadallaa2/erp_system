@@ -75,6 +75,11 @@ class PurchaseInvoiceAdmin(ModelAdmin):
         'invoice_number',
         'status',
         'total_amount',
+        'posted_by',
+        'posted_at',
+        'cancelled_by',
+        'cancelled_at',
+        'cancellation_reason',
         'created_at',
         'updated_at',
         'created_by',
@@ -104,11 +109,14 @@ class PurchaseInvoiceAdmin(ModelAdmin):
             'fields': (
                 'vendor_bill_number',
                 'total_amount',
+                'cancellation_reason',
                 'notes',
             )
         }),
         ('سجلات النظام', {
             'fields': (
+                ('posted_by', 'posted_at'),
+                ('cancelled_by', 'cancelled_at'),
                 ('created_at', 'updated_at'),
                 ('created_by', 'updated_by'),
             ),
@@ -130,7 +138,7 @@ class PurchaseInvoiceAdmin(ModelAdmin):
                 continue
 
             try:
-                PurchaseService.post_invoice(invoice)
+                PurchaseService.post_invoice(invoice, user=request.user)
                 posted_count += 1
             except Exception as exc:
                 self.message_user(
@@ -166,7 +174,7 @@ class PurchaseInvoiceAdmin(ModelAdmin):
                 continue
 
             try:
-                PurchaseService.cancel_invoice(invoice)
+                PurchaseService.cancel_invoice(invoice, user=request.user)
                 cancelled_count += 1
             except Exception as exc:
                 self.message_user(
