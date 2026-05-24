@@ -7,25 +7,83 @@ from dotenv import load_dotenv
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 
+if os.getenv('SKIP_DOTENV') != 'True':
+    load_dotenv(BASE_DIR / '.env')
+
 # -----------------------------------------------------------------------------
 # Security / Environment
 # -----------------------------------------------------------------------------
-SECRET_KEY = os.getenv('SECRET_KEY', 'unsafe-secret-key-for-dev')
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
-CSRF_TRUSTED_ORIGINS = [
+def env_int(name, default=0):
+    value = os.getenv(name)
+    if value in (None, ''):
+        return default
+    return int(value)
+
+
+def env_list(name, default=None):
+    value = os.getenv(name)
+    if value is None:
+        return list(default or [])
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
+DEBUG = env_bool('DEBUG', default=False)
+RUNNING_TESTS = 'test' in sys.argv
+
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'unsafe-local-development-secret-key'
+    else:
+        raise RuntimeError('SECRET_KEY environment variable is required when DEBUG=False.')
+
+ALLOWED_HOSTS = env_list(
+    'ALLOWED_HOSTS',
+    default=['127.0.0.1', 'localhost'] if DEBUG else [],
+)
+if not DEBUG and not ALLOWED_HOSTS:
+    raise RuntimeError('ALLOWED_HOSTS environment variable is required when DEBUG=False.')
+
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS', default=[
+    'http://localhost:5173',
     'https://*.ngrok-free.app',
     'https://*.ngrok.io',
     'https://*.ngrok-free.dev',
-]
+]) if DEBUG else env_list('CSRF_TRUSTED_ORIGINS')
+
+CORS_ALLOWED_ORIGINS = env_list(
+    'CORS_ALLOWED_ORIGINS',
+    default=['http://localhost:5173'] if DEBUG else [],
+)
+CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', default=False)
+if not DEBUG and CORS_ALLOW_ALL_ORIGINS:
+    raise RuntimeError('CORS_ALLOW_ALL_ORIGINS cannot be enabled when DEBUG=False.')
+CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', default=True)
+
+SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', default=not DEBUG and not RUNNING_TESTS)
+SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', default=not DEBUG)
+CSRF_COOKIE_SECURE = env_bool('CSRF_COOKIE_SECURE', default=not DEBUG)
+SECURE_HSTS_SECONDS = env_int('SECURE_HSTS_SECONDS', default=31536000 if not DEBUG else 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS',
+    default=not DEBUG,
+)
+SECURE_HSTS_PRELOAD = env_bool('SECURE_HSTS_PRELOAD', default=False)
+if env_bool('USE_X_FORWARDED_PROTO', default=False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY')
+SECURE_CONTENT_TYPE_NOSNIFF = env_bool('SECURE_CONTENT_TYPE_NOSNIFF', default=True)
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = '/dashboard/'
@@ -109,8 +167,6 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # -----------------------------------------------------------------------------
 # Database
 # -----------------------------------------------------------------------------
-load_dotenv(os.path.join(BASE_DIR, '.env'))
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -156,14 +212,6 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-
-# -----------------------------------------------------------------------------
-# CORS
-# -----------------------------------------------------------------------------
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
-CORS_ALLOW_CREDENTIALS = True
 
 # -----------------------------------------------------------------------------
 # Auth / Cache / API
