@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export type UserRole =
   | "admin"
   | "manager"
@@ -7,6 +8,8 @@ export type UserRole =
 
 export type Permission = string;
 
+=======
+>>>>>>> d3e37ff92beaff7ff7813a7d60c19b113c1ce48b
 export type AuthUser = {
   id: string;
   email: string;
@@ -16,8 +19,11 @@ export type AuthUser = {
   user_type: string;
   company_id: string | null;
   branch_id: string | null;
+<<<<<<< HEAD
   role: UserRole;
   permissions?: Permission[];
+=======
+>>>>>>> d3e37ff92beaff7ff7813a7d60c19b113c1ce48b
 };
 
 export type AuthContextParty = {

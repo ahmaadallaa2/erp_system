@@ -57,6 +57,7 @@ class SettingsSecurityTests(SimpleTestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('settings imported', result.stdout)
 
+<<<<<<< HEAD
     def test_production_imports_with_secret_and_allowed_hosts(self):
         result = self.import_settings({
             'DEBUG': 'False',
@@ -77,6 +78,8 @@ class SettingsSecurityTests(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('ALLOWED_HOSTS', result.stdout + result.stderr)
 
+=======
+>>>>>>> d3e37ff92beaff7ff7813a7d60c19b113c1ce48b
     def test_production_rejects_wildcard_cors(self):
         result = self.import_settings({
             'DEBUG': 'False',
