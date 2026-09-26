@@ -1,6 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .views.reports import (
+    ProductMovementHistoryReportAPIView,
+    WarehouseBalanceReportAPIView,
+)
 from .views import (
     ProductViewSet,
     UnitViewSet,
@@ -19,5 +23,15 @@ router.register("stock-movements", StockMovementViewSet, basename="stock-movemen
 router.register("stock-balances", StockBalanceViewSet, basename="stock-balances")
 
 urlpatterns = [
+    path(
+        "reports/product-movements/",
+        ProductMovementHistoryReportAPIView.as_view(),
+        name="product-movement-history-report",
+    ),
+    path(
+        "reports/warehouse-balances/",
+        WarehouseBalanceReportAPIView.as_view(),
+        name="warehouse-balance-report",
+    ),
     path("", include(router.urls)),
 ]

@@ -10,6 +10,7 @@ export type SalesInvoice = {
   date: string;
   status: string;
   total_amount: string;
+  journal_entry?: string | null;
   notes: string | null;
   items: SalesInvoiceItem[];
   created_at: string;

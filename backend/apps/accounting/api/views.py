@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Q
 
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -13,9 +14,125 @@ from drf_spectacular.utils import (
     extend_schema_view,
 )
 
+from apps.accounting.models.account import Account
+from apps.accounting.models.entry import JournalEntry
 from apps.accounting.models.payment import Payment
 from apps.accounting.services.payment_service import PaymentService
-from .serializers import PaymentSerializer
+from apps.users.api.permissions import (
+    CanCancelPayment,
+    CanPostPayment,
+    HasBranchAccess,
+    IsCompanyMember,
+)
+from apps.users.roles import scope_queryset_to_user_branch
+from .serializers import (
+    AccountLookupSerializer,
+    JournalEntryDetailSerializer,
+    PaymentSerializer,
+)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List account lookup options",
+        description=(
+            "Retrieve active postable accounts for the authenticated user's company. "
+            "Supports account_type filtering and simple code/name search."
+        ),
+        tags=["Accounts"],
+        parameters=[
+            OpenApiParameter(
+                name="account_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                enum=["asset", "liability", "equity", "income", "expense"],
+                description="Filter accounts by type.",
+            ),
+            OpenApiParameter(
+                name="search",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Search accounts by code or name.",
+            ),
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve account lookup option",
+        description="Retrieve one active postable account for the authenticated user's company.",
+        tags=["Accounts"],
+    ),
+)
+class AccountLookupViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = AccountLookupSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        return [permission() for permission in [IsAuthenticated, IsCompanyMember]]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        qs = Account.objects.filter(
+            is_deleted=False,
+            company=user.company,
+            is_active=True,
+            is_postable=True,
+        ).order_by("code")
+
+        account_type = self.request.query_params.get("account_type")
+        if account_type in ["asset", "liability", "equity", "income", "expense"]:
+            qs = qs.filter(account_type=account_type)
+
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(code__icontains=search) | Q(name__icontains=search))
+
+        return qs
+
+
+@extend_schema_view(
+    retrieve=extend_schema(
+        summary="Retrieve journal entry details",
+        description=(
+            "Retrieve a company-scoped journal entry with its journal metadata "
+            "and debit/credit line items."
+        ),
+        tags=["Journal Entries"],
+        responses={200: JournalEntryDetailSerializer},
+    ),
+)
+class JournalEntryViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    serializer_class = JournalEntryDetailSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        return [
+            permission()
+            for permission in [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        ]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        qs = (
+            JournalEntry.objects.filter(
+                is_deleted=False,
+                company=user.company,
+            )
+            .select_related("journal")
+            .prefetch_related("items__account", "items__partner")
+        )
+        return scope_queryset_to_user_branch(
+            qs,
+            user,
+            "linked_payment__branch_id",
+            "sales_invoice__branch_id",
+            "purchase_invoice__branch_id",
+            "stock_transaction__source_warehouse__branch_id",
+            "stock_transaction__destination_warehouse__branch_id",
+        )
 
 
 @extend_schema_view(
@@ -92,6 +209,14 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        permission_classes = [IsAuthenticated, IsCompanyMember, HasBranchAccess]
+        if self.action == "post_payment":
+            permission_classes.append(CanPostPayment)
+        elif self.action == "cancel_payment":
+            permission_classes.append(CanCancelPayment)
+        return [permission() for permission in permission_classes]
+
     def get_queryset(self):
         user = self.request.user
 
@@ -99,6 +224,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             is_deleted=False,
             company=user.company,
         ).order_by("-date", "-created_at")
+        qs = scope_queryset_to_user_branch(qs, user, "branch_id")
 
         status_param = self.request.query_params.get("status")
         if status_param in ["draft", "posted", "cancelled"]:
@@ -149,7 +275,30 @@ class PaymentViewSet(viewsets.ModelViewSet):
             raise ValidationError("Only draft payments can be posted.")
 
         try:
-            PaymentService.post_payment(payment)
+            PaymentService.post_payment(payment, user=request.user)
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.messages) from exc
+
+        payment.refresh_from_db()
+        serializer = self.get_serializer(payment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Cancel payment",
+        description=(
+            "Cancel a posted payment by creating a reversing journal entry. "
+            "Draft and already cancelled payments are rejected."
+        ),
+        tags=["Payments"],
+        responses={200: PaymentSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel_payment(self, request, pk=None):
+        payment = self.get_object()
+        reason = request.data.get("cancellation_reason", "")
+
+        try:
+            PaymentService.cancel_payment(payment, user=request.user, reason=reason)
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
 

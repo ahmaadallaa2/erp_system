@@ -1,6 +1,10 @@
 from django.contrib import admin
+from django.contrib.auth import logout
+from django.contrib.auth.decorators import login_not_required
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.urls import path, include
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -8,7 +12,30 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
+
+@login_not_required
+def root_view(request):
+    return JsonResponse({
+        "message": "Welcome to the ERP Backend API",
+        "status": "Running smoothly",
+    })
+
+
+@login_not_required
+def health_view(request):
+    return JsonResponse({"status": "ok"})
+
+
+@login_not_required
+def admin_logout_view(request):
+    logout(request)
+    return redirect("admin:login")
+
+
 urlpatterns = [
+    path("", root_view, name="api-root"),
+    path("health/", health_view, name="health"),
+    path("admin/logout/", admin_logout_view, name="admin-logout"),
     path("admin/", admin.site.urls),
 
     path("api/", include("apps.core.api.urls")),
@@ -19,24 +46,21 @@ urlpatterns = [
     path("api/purchases/", include("apps.purchases.api.urls")),
     path("api/accounting/", include("apps.accounting.api.urls")),
     path("api/ai-assistant/", include("apps.ai_assistant.api.urls")),
+]
 
-    # OpenAPI schema
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+schema_view = SpectacularAPIView.as_view()
+swagger_view = SpectacularSwaggerView.as_view(url_name="schema")
+redoc_view = SpectacularRedocView.as_view(url_name="schema")
 
-    # Swagger UI
-    path(
-        "api/docs/",
-        SpectacularSwaggerView.as_view(url_name="schema"),
-        name="swagger-ui",
-    ),
+if settings.DEBUG:
+    schema_view = login_not_required(schema_view)
+    swagger_view = login_not_required(swagger_view)
+    redoc_view = login_not_required(redoc_view)
 
-    # ReDoc
-    path(
-        "api/redoc/",
-        SpectacularRedocView.as_view(url_name="schema"),
-        name="redoc",
-    ),
-    
+urlpatterns += [
+    path("api/schema/", schema_view, name="schema"),
+    path("api/docs/", swagger_view, name="swagger-ui"),
+    path("api/redoc/", redoc_view, name="redoc"),
 ]
 
 if settings.DEBUG:

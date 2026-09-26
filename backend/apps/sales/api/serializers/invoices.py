@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.sales.models import SalesInvoice, SalesInvoiceItem
+from apps.users.roles import user_can_access_branch_id
 
 
 class SalesInvoiceItemSerializer(serializers.ModelSerializer):
@@ -54,6 +55,7 @@ class SalesInvoiceItemSerializer(serializers.ModelSerializer):
 
 class SalesInvoiceSerializer(serializers.ModelSerializer):
     items = SalesInvoiceItemSerializer(many=True, read_only=True)
+    journal_entry_id = serializers.UUIDField(read_only=True)
 
     class Meta:
         model = SalesInvoice
@@ -67,6 +69,13 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "date",
             "status",
             "total_amount",
+            "journal_entry",
+            "journal_entry_id",
+            "posted_by",
+            "posted_at",
+            "cancelled_by",
+            "cancelled_at",
+            "cancellation_reason",
             "notes",
             "items",
             "created_at",
@@ -79,6 +88,13 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "invoice_number",
             "status",
             "total_amount",
+            "journal_entry",
+            "journal_entry_id",
+            "posted_by",
+            "posted_at",
+            "cancelled_by",
+            "cancelled_at",
+            "cancellation_reason",
             "created_at",
             "updated_at",
         ]
@@ -109,6 +125,11 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
         if user.company and value.company_id != user.company_id:
             raise serializers.ValidationError(
                 "Selected warehouse does not belong to the user's company."
+            )
+
+        if not user_can_access_branch_id(user, value.branch_id):
+            raise serializers.ValidationError(
+                "Selected warehouse is outside the user's branch access."
             )
 
         return value

@@ -5,6 +5,7 @@ import { listWarehouses } from "../../warehouses/api/list-warehouses";
 import { createSalesInvoice } from "../api/create-sales-invoice";
 import type { Partner } from "../../partners/types/partner";
 import type { Warehouse } from "../../warehouses/types/warehouse";
+import { ErrorMessage, LoadingState, PageHeader } from "../../../components/ui/mvp";
 
 function CreateSalesInvoicePage() {
   const navigate = useNavigate();
@@ -97,17 +98,16 @@ function CreateSalesInvoicePage() {
   };
 
   if (loadingLookups) {
-    return <p>Loading form data...</p>;
+    return <LoadingState label="Loading sales invoice form data..." />;
   }
 
   return (
     <main>
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ margin: 0 }}>Create Sales Invoice</h1>
-        <p style={{ marginTop: "8px", color: "#666" }}>
-          Create a draft customer invoice.
-        </p>
-      </div>
+      <PageHeader
+        title="Create Sales Invoice"
+        subtitle="Create a draft customer invoice."
+        note="MVP note: sales invoices are treated as credit sales only."
+      />
 
       <form onSubmit={handleSubmit} style={formCardStyle}>
         <div style={gridStyle}>
@@ -161,7 +161,7 @@ function CreateSalesInvoicePage() {
           />
         </div>
 
-        {error && <div style={errorBoxStyle}>{error}</div>}
+        <ErrorMessage message={error} />
 
         <div style={{ marginTop: "20px" }}>
           <button type="submit" disabled={saving} style={buttonStyle}>
@@ -210,16 +210,6 @@ const buttonStyle: React.CSSProperties = {
   color: "#fff",
   cursor: "pointer",
   fontWeight: 600,
-};
-
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: "16px",
-  padding: "12px",
-  borderRadius: "8px",
-  background: "#fef2f2",
-  color: "#b91c1c",
-  fontSize: "14px",
-  whiteSpace: "pre-wrap",
 };
 
 export default CreateSalesInvoicePage;

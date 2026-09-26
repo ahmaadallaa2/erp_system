@@ -1,9 +1,96 @@
 from rest_framework import serializers
 
+from apps.accounting.models.entry import JournalEntry, JournalItem
+from apps.accounting.models.journal import Journal
+from apps.accounting.models.account import Account
 from apps.accounting.models.payment import Payment
 
 
+class AccountLookupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = [
+            "id",
+            "code",
+            "name",
+            "account_type",
+            "normal_balance",
+            "is_postable",
+            "is_active",
+        ]
+        read_only_fields = fields
+
+
+class JournalBasicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Journal
+        fields = [
+            "id",
+            "code",
+            "name",
+            "type",
+        ]
+        read_only_fields = fields
+
+
+class JournalItemLineSerializer(serializers.ModelSerializer):
+    account_id = serializers.UUIDField(source="account.id", read_only=True)
+    account_code = serializers.CharField(source="account.code", read_only=True)
+    account_name = serializers.CharField(source="account.name", read_only=True)
+    partner_id = serializers.UUIDField(source="partner.id", read_only=True)
+    partner_name = serializers.CharField(source="partner.name", read_only=True)
+
+    class Meta:
+        model = JournalItem
+        fields = [
+            "id",
+            "account_id",
+            "account_code",
+            "account_name",
+            "partner_id",
+            "partner_name",
+            "debit",
+            "credit",
+            "description",
+        ]
+        read_only_fields = fields
+
+
+class JournalEntryDetailSerializer(serializers.ModelSerializer):
+    description = serializers.CharField(source="notes", read_only=True)
+    journal = JournalBasicSerializer(read_only=True)
+    total_debit = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+    )
+    total_credit = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+    )
+    items = JournalItemLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = JournalEntry
+        fields = [
+            "id",
+            "entry_number",
+            "date",
+            "status",
+            "reference",
+            "description",
+            "journal",
+            "total_debit",
+            "total_credit",
+            "items",
+        ]
+        read_only_fields = fields
+
+
 class PaymentSerializer(serializers.ModelSerializer):
+    journal_entry_id = serializers.UUIDField(read_only=True)
+
     class Meta:
         model = Payment
         fields = [
@@ -21,6 +108,12 @@ class PaymentSerializer(serializers.ModelSerializer):
             "reference",
             "notes",
             "journal_entry",
+            "journal_entry_id",
+            "posted_by",
+            "posted_at",
+            "cancelled_by",
+            "cancelled_at",
+            "cancellation_reason",
             "created_at",
             "updated_at",
         ]
@@ -29,6 +122,12 @@ class PaymentSerializer(serializers.ModelSerializer):
             "voucher_number",
             "status",
             "journal_entry",
+            "journal_entry_id",
+            "posted_by",
+            "posted_at",
+            "cancelled_by",
+            "cancelled_at",
+            "cancellation_reason",
             "company",
             "branch",
             "created_at",

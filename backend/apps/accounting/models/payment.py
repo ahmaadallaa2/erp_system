@@ -111,6 +111,28 @@ class Payment(SoftDeleteModel):
         verbose_name=_("قيد اليومية المرتبط")
     )
 
+    posted_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="posted_payments",
+    )
+
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    cancelled_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_payments",
+    )
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    cancellation_reason = models.TextField(blank=True)
+
     class Meta:
         verbose_name = _("سند قبض / صرف")
         verbose_name_plural = _("سندات القبض والصرف")

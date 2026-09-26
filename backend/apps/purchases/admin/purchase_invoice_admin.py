@@ -19,17 +19,17 @@ class PurchaseInvoiceItemInline(TabularInline):
     autocomplete_fields = ('product',)
 
     def has_change_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_delete_permission(request, obj)
 
     def has_add_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_add_permission(request, obj)
 
@@ -75,13 +75,18 @@ class PurchaseInvoiceAdmin(ModelAdmin):
         'invoice_number',
         'status',
         'total_amount',
+        'posted_by',
+        'posted_at',
+        'cancelled_by',
+        'cancelled_at',
+        'cancellation_reason',
         'created_at',
         'updated_at',
         'created_by',
         'updated_by',
     )
 
-    actions = ['post_invoices']
+    actions = ['post_invoices', 'cancel_invoices']
 
     fieldsets = (
         ('البيانات الأساسية', {
@@ -104,11 +109,14 @@ class PurchaseInvoiceAdmin(ModelAdmin):
             'fields': (
                 'vendor_bill_number',
                 'total_amount',
+                'cancellation_reason',
                 'notes',
             )
         }),
         ('سجلات النظام', {
             'fields': (
+                ('posted_by', 'posted_at'),
+                ('cancelled_by', 'cancelled_at'),
                 ('created_at', 'updated_at'),
                 ('created_by', 'updated_by'),
             ),
@@ -130,7 +138,7 @@ class PurchaseInvoiceAdmin(ModelAdmin):
                 continue
 
             try:
-                PurchaseService.post_invoice(invoice)
+                PurchaseService.post_invoice(invoice, user=request.user)
                 posted_count += 1
             except Exception as exc:
                 self.message_user(
@@ -152,12 +160,47 @@ class PurchaseInvoiceAdmin(ModelAdmin):
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
 
+    @admin.action(description="Cancel selected purchase invoices")
+    def cancel_invoices(self, request, queryset):
+        cancelled_count = 0
+
+        for invoice in queryset:
+            if invoice.status != 'posted':
+                self.message_user(
+                    request,
+                    f"Skipped invoice {invoice.invoice_number}: not in posted status.",
+                    level=messages.WARNING
+                )
+                continue
+
+            try:
+                PurchaseService.cancel_invoice(invoice, user=request.user)
+                cancelled_count += 1
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f"Failed to cancel invoice {invoice.invoice_number}: {exc}",
+                    level=messages.ERROR
+                )
+
+        if cancelled_count:
+            self.message_user(
+                request,
+                f"Cancelled {cancelled_count} purchase invoice(s) successfully.",
+                level=messages.SUCCESS
+            )
+
     def has_change_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop('delete_selected', None)
+        return actions

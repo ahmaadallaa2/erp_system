@@ -8,6 +8,7 @@ from apps.accounting.models.payment import Payment
 from apps.core.models.company import Branch, Company
 from apps.partners.models import Partner
 from apps.users.models import User
+from apps.users.roles import ROLE_ACCOUNTING_MANAGER, assign_role
 
 
 class PaymentAPITestCase(APITestCase):
@@ -27,6 +28,7 @@ class PaymentAPITestCase(APITestCase):
             company=self.company,
             branch=self.branch,
         )
+        assign_role(self.user, ROLE_ACCOUNTING_MANAGER)
         self.client.force_authenticate(self.user)
 
         self.customer = Partner.objects.create(
@@ -115,6 +117,27 @@ class PaymentAPITestCase(APITestCase):
 
         self.assertEqual(payment.status, "posted")
         self.assertIsNotNone(payment.journal_entry_id)
+        self.assertEqual(payment.posted_by, self.user)
+        self.assertIsNotNone(payment.posted_at)
+
+    def test_user_can_cancel_posted_payment(self):
+        payment = self.create_posted_payment()
+        original_entry_id = payment.journal_entry_id
+
+        response = self.client.post(
+            f"{self.list_url}{payment.id}/cancel/",
+            {"cancellation_reason": "Duplicate receipt"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        payment.refresh_from_db()
+
+        self.assertEqual(payment.status, "cancelled")
+        self.assertEqual(payment.journal_entry_id, original_entry_id)
+        self.assertEqual(payment.cancelled_by, self.user)
+        self.assertIsNotNone(payment.cancelled_at)
+        self.assertEqual(payment.cancellation_reason, "Duplicate receipt")
 
     def test_posted_payment_cannot_be_edited(self):
         payment = self.create_posted_payment()

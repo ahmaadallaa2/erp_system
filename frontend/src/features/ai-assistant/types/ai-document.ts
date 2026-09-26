@@ -23,3 +23,22 @@ export type AskResponse = {
   answer: string;
   citations: AskCitation[];
 };
+
+export type RetrievalComparisonResult = {
+  method: "keyword" | "semantic";
+  score: number;
+  chunk_id: string;
+  chunk_index: number;
+  page_number: number | null;
+  text: string;
+};
+
+export type SemanticSearchResult = {
+  score: number;
+  chunk: {
+    id: string;
+    chunk_index: number;
+    page_number: number | null;
+    text: string;
+  };
+};

@@ -9,10 +9,12 @@ from apps.accounting.models.payment import Payment
 from apps.inventory.models.stock_balance import StockBalance
 from apps.purchases.models.purchase_invoice import PurchaseInvoice
 from apps.sales.models.sales_invoice import SalesInvoice
+from apps.users.api.permissions import IsCompanyMember
+from apps.users.roles import scope_queryset_to_user_branch
 
 
 class DashboardSummaryAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCompanyMember]
 
     def get(self, request):
         company = request.user.company
@@ -20,32 +22,44 @@ class DashboardSummaryAPIView(APIView):
         if not company:
             return Response(self.empty_summary())
 
-        total_sales = self.sum_amount(
+        sales = scope_queryset_to_user_branch(
             SalesInvoice.objects.filter(company=company, status="posted"),
-            "total_amount",
+            request.user,
+            "branch_id",
         )
-        total_purchases = self.sum_amount(
+        purchases = scope_queryset_to_user_branch(
             PurchaseInvoice.objects.filter(company=company, status="posted"),
-            "total_amount",
+            request.user,
+            "branch_id",
         )
-        inbound_payments = self.sum_amount(
+        inbound = scope_queryset_to_user_branch(
             Payment.objects.filter(
                 company=company,
                 status="posted",
                 payment_type="inbound",
             ),
-            "amount",
+            request.user,
+            "branch_id",
         )
-        outbound_payments = self.sum_amount(
+        outbound = scope_queryset_to_user_branch(
             Payment.objects.filter(
                 company=company,
                 status="posted",
                 payment_type="outbound",
             ),
-            "amount",
+            request.user,
+            "branch_id",
+        )
+        stock_balances = scope_queryset_to_user_branch(
+            StockBalance.objects.filter(company=company),
+            request.user,
+            "warehouse__branch_id",
         )
 
-        stock_balances = StockBalance.objects.filter(company=company)
+        total_sales = self.sum_amount(sales, "total_amount")
+        total_purchases = self.sum_amount(purchases, "total_amount")
+        inbound_payments = self.sum_amount(inbound, "amount")
+        outbound_payments = self.sum_amount(outbound, "amount")
 
         data = {
             "total_sales": total_sales,

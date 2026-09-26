@@ -78,6 +78,36 @@ class PurchaseInvoice(SoftDeleteModel):
         editable=False
     )
 
+    journal_entry = models.OneToOneField(
+        "accounting.JournalEntry",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="purchase_invoice",
+    )
+
+    posted_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="posted_purchase_invoices",
+    )
+
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    cancelled_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cancelled_purchase_invoices",
+    )
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    cancellation_reason = models.TextField(blank=True)
+
     shipping_cost = models.DecimalField(
         _("تكلفة الشحن الداخلي"),
         max_digits=10,

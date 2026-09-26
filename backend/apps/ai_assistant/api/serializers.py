@@ -86,6 +86,20 @@ class SemanticSearchResultSerializer(serializers.Serializer):
     chunk = DocumentChunkSerializer()
 
 
+class KeywordSearchRequestSerializer(serializers.Serializer):
+    query = serializers.CharField()
+    top_k = serializers.IntegerField(required=False, min_value=1, max_value=20, default=5)
+
+
+class KeywordSearchResultSerializer(serializers.Serializer):
+    chunk_id = serializers.CharField()
+    chunk_index = serializers.IntegerField()
+    page_number = serializers.IntegerField(allow_null=True)
+    text = serializers.CharField()
+    score = serializers.FloatField()
+    method = serializers.CharField()
+
+
 class AskDocumentRequestSerializer(serializers.Serializer):
     question = serializers.CharField()
     top_k = serializers.IntegerField(required=False, min_value=1, max_value=20, default=5)

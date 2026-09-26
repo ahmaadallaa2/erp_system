@@ -224,17 +224,17 @@ class StockMovementInline(TabularInline):
     fields = ('product', 'quantity', 'unit_cost', 'note')
 
     def has_change_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_delete_permission(request, obj)
 
     def has_add_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_add_permission(request, obj)
 
@@ -271,6 +271,9 @@ class StockTransactionAdmin(ModelAdmin):
 
     readonly_fields = (
         'code',
+        'status',
+        'posted_by',
+        'posted_at',
         'created_at',
         'created_by',
         'updated_at',
@@ -297,7 +300,13 @@ class StockTransactionAdmin(ModelAdmin):
             'fields': ('reference', 'journal_entry', 'notes')
         }),
         ('سجلات النظام', {
-            'fields': ('created_at', 'created_by', 'updated_at', 'updated_by'),
+            'fields': (
+                ('posted_by', 'posted_at'),
+                'created_at',
+                'created_by',
+                'updated_at',
+                'updated_by',
+            ),
             'classes': ('collapse',),
         }),
     )
@@ -310,7 +319,7 @@ class StockTransactionAdmin(ModelAdmin):
         for obj in queryset:
             if obj.status == 'draft':
                 try:
-                    StockService.post_transaction(obj)
+                    StockService.post_transaction(obj, user=request.user)
                     posted_count += 1
                 except Exception as exc:
                     self.message_user(
@@ -329,11 +338,16 @@ class StockTransactionAdmin(ModelAdmin):
         super().save_model(request, obj, form, change)
 
     def has_change_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_change_permission(request, obj)
 
     def has_delete_permission(self, request, obj=None):
-        if obj and obj.status == 'posted':
+        if obj and obj.status in ('posted', 'cancelled'):
             return False
         return super().has_delete_permission(request, obj)
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop('delete_selected', None)
+        return actions

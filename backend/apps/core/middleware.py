@@ -18,3 +18,10 @@ class ThreadLocalMiddleware(MiddlewareMixin):
     """
     def process_request(self, request):
         _thread_locals.user = getattr(request, 'user', None)
+
+    def process_response(self, request, response):
+        _thread_locals.user = None
+        return response
+
+    def process_exception(self, request, exception):
+        _thread_locals.user = None
