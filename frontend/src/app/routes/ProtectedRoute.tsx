@@ -8,7 +8,7 @@ type ProtectedRouteProps = {
 
 function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const userRole = useAuthStore((state) => state.user?.role);
+  const userRole = useAuthStore((state) => state.user?.user_type);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

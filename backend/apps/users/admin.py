@@ -61,3 +61,10 @@ class CustomUserAdmin(BaseUserAdmin, ModelAdmin):
             'fields': ('email', 'full_name', 'user_type', 'company', 'branch', 'password1', 'password2'),
         }),
     )
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = super().get_readonly_fields(request, obj)
+        if request.user.is_superuser:
+            return readonly
+        # Staff with change_user must not be able to grant themselves superuser.
+        return tuple(readonly) + ('is_superuser', 'user_permissions')

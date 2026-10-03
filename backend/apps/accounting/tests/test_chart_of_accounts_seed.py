@@ -3,6 +3,7 @@ from django.test import TestCase
 from apps.accounting.models.account import Account
 from apps.accounting.services.chart_of_accounts_seed import (
     STANDARD_CHART_OF_ACCOUNTS,
+    create_default_chart_of_accounts,
     seed_standard_chart_of_accounts,
 )
 from apps.core.models.company import Company
@@ -114,14 +115,9 @@ class StandardChartOfAccountsSeedTestCase(TestCase):
         self.assertEqual(existing_codes, required_codes)
 
     def test_existing_account_name_is_preserved_and_parent_is_set(self):
-        Account.objects.create(
-            company=self.company,
-            code="1001",
+        Account.objects.filter(company=self.company, code="1001").update(
             name="Custom Bank Name",
-            account_type="asset",
-            normal_balance="debit",
-            is_postable=True,
-            is_active=True,
+            parent=None,
         )
 
         seed_standard_chart_of_accounts(self.company)
@@ -129,3 +125,50 @@ class StandardChartOfAccountsSeedTestCase(TestCase):
         bank = Account.objects.get(company=self.company, code="1001")
         self.assertEqual(bank.name, "Custom Bank Name")
         self.assertEqual(bank.parent.code, "1000")
+
+
+class DefaultChartOfAccountsSignalTestCase(TestCase):
+    def test_new_company_gets_standard_chart_with_hierarchy(self):
+        company = Company.objects.create(name="Signal Company")
+
+        accounts = {
+            account.code: account
+            for account in Account.objects.filter(company=company).select_related("parent")
+        }
+
+        self.assertEqual(
+            set(accounts),
+            {item["code"] for item in STANDARD_CHART_OF_ACCOUNTS},
+        )
+        for item in STANDARD_CHART_OF_ACCOUNTS:
+            account = accounts[item["code"]]
+            self.assertEqual(account.name, item["name"])
+            self.assertEqual(account.account_type, item["account_type"])
+            self.assertEqual(account.is_postable, item["is_postable"])
+            self.assertEqual(
+                account.parent.code if account.parent else None,
+                item["parent_code"],
+            )
+
+    def test_updating_company_does_not_duplicate_accounts(self):
+        company = Company.objects.create(name="Signal Company")
+        count_after_create = Account.objects.filter(company=company).count()
+
+        company.name = "Renamed Company"
+        company.save()
+
+        self.assertEqual(
+            Account.objects.filter(company=company).count(),
+            count_after_create,
+        )
+
+    def test_create_default_chart_of_accounts_is_idempotent(self):
+        company = Company.objects.create(name="Signal Company")
+        count_after_create = Account.objects.filter(company=company).count()
+
+        create_default_chart_of_accounts(company)
+
+        self.assertEqual(
+            Account.objects.filter(company=company).count(),
+            count_after_create,
+        )

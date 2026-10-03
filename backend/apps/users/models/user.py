@@ -81,8 +81,14 @@ class User(AbstractUser):
         if self.user_type == 'branch_manager' and (not self.company or not self.branch):
             raise ValidationError(_("مدير الفرع يجب أن يكون مرتبطًا بشركة وفرع."))
 
+    VALIDATED_FIELDS = frozenset({'email', 'user_type', 'company', 'branch'})
+
     def save(self, *args, **kwargs):
-        self.full_clean()
+        # Partial saves such as last_login or is_active must still work for a
+        # user left invalid by a deleted branch (branch is SET_NULL).
+        update_fields = kwargs.get('update_fields')
+        if update_fields is None or self.VALIDATED_FIELDS.intersection(update_fields):
+            self.full_clean()
         super().save(*args, **kwargs)
 
     def soft_delete(self):

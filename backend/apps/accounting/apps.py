@@ -5,3 +5,5 @@ class AccountingConfig(AppConfig):
     name = 'apps.accounting'
     verbose_name = 'المحاسبة'
 
+    def ready(self):
+        import apps.accounting.signals  # noqa: F401

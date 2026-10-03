@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.accounting.models.account import Account
+from apps.accounting.tests.helpers import ensure_account
 from apps.accounting.models.entry import JournalEntry, JournalItem
 from apps.accounting.models.journal import Journal
 from apps.core.models.company import Branch, Company
@@ -40,7 +40,7 @@ class JournalEntryAPITestCase(APITestCase):
             type="general",
         )
 
-        self.cash_account = Account.objects.create(
+        self.cash_account = ensure_account(
             company=self.company,
             code="1002",
             name="Cash",
@@ -48,7 +48,7 @@ class JournalEntryAPITestCase(APITestCase):
             normal_balance="debit",
             is_postable=True,
         )
-        self.receivable_account = Account.objects.create(
+        self.receivable_account = ensure_account(
             company=self.company,
             code="1003",
             name="Accounts Receivable",
@@ -57,7 +57,7 @@ class JournalEntryAPITestCase(APITestCase):
             is_postable=True,
             allow_reconciliation=True,
         )
-        self.other_cash_account = Account.objects.create(
+        self.other_cash_account = ensure_account(
             company=self.other_company,
             code="1002",
             name="Other Cash",

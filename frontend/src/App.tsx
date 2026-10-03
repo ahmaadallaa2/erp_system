@@ -21,10 +21,7 @@ import AiAssistantPage from "./features/ai-assistant/pages/AiAssistantPage";
 import PaymentsPage from "./features/payments/pages/PaymentsPage";
 import JournalEntryDetailPage from "./features/accounting/pages/JournalEntryDetailPage";
 import GeneralLedgerPage from "./features/accounting/pages/GeneralLedgerPage";
-<<<<<<< HEAD
 import UsersPage from "./pages/UsersPage";
-=======
->>>>>>> d3e37ff92beaff7ff7813a7d60c19b113c1ce48b
 
 function App() {
   return (
@@ -51,14 +48,10 @@ function App() {
             <Route path="/sales-invoices/new" element={<CreateSalesInvoicePage />} />
             <Route path="/sales-invoices/:id" element={<SalesInvoiceDetailsPage />} />
             <Route path="/payments" element={<PaymentsPage />} />
-<<<<<<< HEAD
-            <Route element={<ProtectedRoute allowedRoles={["admin", "accountant"]} />}>
-              <Route path="/general-ledger" element={<GeneralLedgerPage />} />
+            <Route path="/general-ledger" element={<GeneralLedgerPage />} />
+            <Route element={<ProtectedRoute allowedRoles={["system_admin", "company_admin"]} />}>
               <Route path="/users" element={<UsersPage />} />
             </Route>
-=======
-            <Route path="/general-ledger" element={<GeneralLedgerPage />} />
->>>>>>> d3e37ff92beaff7ff7813a7d60c19b113c1ce48b
             <Route path="/accounting/journal-entries/:id" element={<JournalEntryDetailPage />} />
             <Route path="/ai-assistant" element={<AiAssistantPage />} />
           </Route>

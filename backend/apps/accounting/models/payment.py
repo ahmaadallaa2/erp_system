@@ -151,18 +151,19 @@ class Payment(SoftDeleteModel):
         ]
 
     def __str__(self):
-        return f"{self.voucher_number} - {self.partner.name} - {self.amount}"
+        partner_name = self.partner.name if self.partner_id else "-"
+        return f"{self.voucher_number or '-'} - {partner_name} - {self.amount}"
 
     def clean(self):
         super().clean()
 
-        if self.branch and self.company and self.branch.company_id != self.company_id:
+        if self.branch_id and self.company_id and self.branch.company_id != self.company_id:
             raise ValidationError(_("الفرع لا يتبع نفس الشركة."))
 
-        if self.partner and self.company and self.partner.company_id != self.company_id:
+        if self.partner_id and self.company_id and self.partner.company_id != self.company_id:
             raise ValidationError(_("الشريك لا يتبع نفس الشركة."))
 
-        if self.account and self.company and self.account.company_id != self.company_id:
+        if self.account_id and self.company_id and self.account.company_id != self.company_id:
             raise ValidationError(_("الحساب لا يتبع نفس الشركة."))
 
         if self.amount is None or self.amount <= 0:
@@ -175,11 +176,11 @@ class Payment(SoftDeleteModel):
             raise ValidationError(_("حساب السند يجب أن يكون من نوع أصل (خزينة أو بنك)."))
 
         if self.payment_type == 'inbound':
-            if self.partner and self.partner.partner_type not in ['customer', 'both']:
+            if self.partner_id and self.partner.partner_type not in ['customer', 'both']:
                 raise ValidationError(_("سند القبض يجب أن يكون مرتبطًا بعميل."))
 
         if self.payment_type == 'outbound':
-            if self.partner and self.partner.partner_type not in ['supplier', 'both']:
+            if self.partner_id and self.partner.partner_type not in ['supplier', 'both']:
                 raise ValidationError(_("سند الصرف يجب أن يكون مرتبطًا بمورد."))
 
     def save(self, *args, **kwargs):

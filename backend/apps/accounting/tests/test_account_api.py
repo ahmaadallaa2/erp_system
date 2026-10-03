@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.accounting.models.account import Account
+from apps.accounting.tests.helpers import ensure_account
 from apps.core.models.company import Branch, Company
 from apps.users.models import User
 
@@ -20,7 +20,7 @@ class AccountLookupAPITestCase(APITestCase):
             branch=self.branch,
         )
 
-        self.cash_account = Account.objects.create(
+        self.cash_account = ensure_account(
             company=self.company,
             code="1002",
             name="Cash",
@@ -29,7 +29,7 @@ class AccountLookupAPITestCase(APITestCase):
             is_postable=True,
             is_active=True,
         )
-        self.inactive_account = Account.objects.create(
+        self.inactive_account = ensure_account(
             company=self.company,
             code="1003",
             name="Inactive Cash",
@@ -38,7 +38,7 @@ class AccountLookupAPITestCase(APITestCase):
             is_postable=True,
             is_active=False,
         )
-        self.non_postable_account = Account.objects.create(
+        self.non_postable_account = ensure_account(
             company=self.company,
             code="1004",
             name="Asset Group",
@@ -47,7 +47,7 @@ class AccountLookupAPITestCase(APITestCase):
             is_postable=False,
             is_active=True,
         )
-        self.other_company_account = Account.objects.create(
+        self.other_company_account = ensure_account(
             company=self.other_company,
             code="1002",
             name="Other Cash",
@@ -101,10 +101,10 @@ class AccountLookupAPITestCase(APITestCase):
         response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        accounts_by_id = {item["id"]: item for item in response.data}
+        self.assertIn(str(self.cash_account.id), accounts_by_id)
 
-        account = response.data[0]
-        self.assertEqual(account["id"], str(self.cash_account.id))
+        account = accounts_by_id[str(self.cash_account.id)]
         self.assertEqual(account["code"], "1002")
         self.assertEqual(account["name"], "Cash")
         self.assertEqual(account["account_type"], "asset")

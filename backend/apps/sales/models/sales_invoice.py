@@ -121,18 +121,19 @@ class SalesInvoice(SoftDeleteModel):
         ]
 
     def __str__(self):
-        return f"{self.invoice_number} - {self.customer.name}"
+        customer_name = self.customer.name if self.customer_id else "-"
+        return f"{self.invoice_number or '-'} - {customer_name}"
 
     def clean(self):
         super().clean()
 
-        if self.branch and self.company and self.branch.company_id != self.company_id:
+        if self.branch_id and self.company_id and self.branch.company_id != self.company_id:
             raise ValidationError(_("الفرع لا يتبع نفس الشركة."))
 
-        if self.customer and self.company and self.customer.company_id != self.company_id:
+        if self.customer_id and self.company_id and self.customer.company_id != self.company_id:
             raise ValidationError(_("العميل لا يتبع نفس الشركة."))
 
-        if self.warehouse and self.company and self.warehouse.company_id != self.company_id:
+        if self.warehouse_id and self.company_id and self.warehouse.company_id != self.company_id:
             raise ValidationError(_("المخزن لا يتبع نفس الشركة."))
 
     def save(self, *args, **kwargs):

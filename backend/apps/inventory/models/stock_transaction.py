@@ -125,19 +125,27 @@ class StockTransaction(BaseModel):
     def clean(self):
         super().clean()
 
-        if self.source_warehouse and self.source_warehouse.company_id != self.company_id:
+        if (
+            self.source_warehouse_id
+            and self.company_id
+            and self.source_warehouse.company_id != self.company_id
+        ):
             raise ValidationError(_("المخزن المصدر لا يتبع نفس الشركة."))
 
-        if self.destination_warehouse and self.destination_warehouse.company_id != self.company_id:
+        if (
+            self.destination_warehouse_id
+            and self.company_id
+            and self.destination_warehouse.company_id != self.company_id
+        ):
             raise ValidationError(_("المخزن الوجهة لا يتبع نفس الشركة."))
 
         if self.transaction_type == 'TRANSFER':
-            if not self.destination_warehouse:
+            if not self.destination_warehouse_id:
                 raise ValidationError(_("يجب تحديد المخزن الوجهة في حالة التحويل الداخلي."))
             if self.source_warehouse_id == self.destination_warehouse_id:
                 raise ValidationError(_("لا يمكن التحويل إلى نفس المخزن."))
         else:
-            if self.destination_warehouse:
+            if self.destination_warehouse_id:
                 raise ValidationError(_("المخزن الوجهة يستخدم فقط مع التحويل الداخلي."))
 
     def save(self, *args, **kwargs):

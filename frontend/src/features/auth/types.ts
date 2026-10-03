@@ -1,29 +1,18 @@
-<<<<<<< HEAD
 export type UserRole =
-  | "admin"
-  | "manager"
-  | "accountant"
-  | "inventory_manager"
-  | "cashier";
+  | "system_admin"
+  | "company_admin"
+  | "branch_manager"
+  | "employee";
 
-export type Permission = string;
-
-=======
->>>>>>> d3e37ff92beaff7ff7813a7d60c19b113c1ce48b
 export type AuthUser = {
   id: string;
   email: string;
   full_name: string;
-  phone?: string;
-  job_title?: string;
-  user_type: string;
+  phone?: string | null;
+  job_title?: string | null;
+  user_type: UserRole;
   company_id: string | null;
   branch_id: string | null;
-<<<<<<< HEAD
-  role: UserRole;
-  permissions?: Permission[];
-=======
->>>>>>> d3e37ff92beaff7ff7813a7d60c19b113c1ce48b
 };
 
 export type AuthContextParty = {

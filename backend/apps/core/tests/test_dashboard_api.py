@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.accounting.models.account import Account
+from apps.accounting.tests.helpers import ensure_account
 from apps.accounting.models.payment import Payment
 from apps.core.models.company import Branch, Company
 from apps.inventory.models import Category, Product, StockBalance, Unit, Warehouse
@@ -87,7 +87,7 @@ class DashboardSummaryAPITestCase(APITestCase):
             name="Other Product",
         )
 
-        self.cash_account = Account.objects.create(
+        self.cash_account = ensure_account(
             company=self.company,
             code="1002",
             name="Cash",
@@ -95,7 +95,7 @@ class DashboardSummaryAPITestCase(APITestCase):
             normal_balance="debit",
             is_postable=True,
         )
-        self.other_cash_account = Account.objects.create(
+        self.other_cash_account = ensure_account(
             company=self.other_company,
             code="1002",
             name="Other Cash",

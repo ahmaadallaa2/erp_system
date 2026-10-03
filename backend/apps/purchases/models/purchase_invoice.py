@@ -144,18 +144,18 @@ class PurchaseInvoice(SoftDeleteModel):
         ]
 
     def __str__(self):
-        return f"[{self.invoice_number}] {self.supplier.name if self.supplier else 'بدون مورد'}"
+        return f"[{self.invoice_number}] {self.supplier.name if self.supplier_id else 'بدون مورد'}"
 
     def clean(self):
         super().clean()
 
-        if self.branch and self.company and self.branch.company_id != self.company_id:
+        if self.branch_id and self.company_id and self.branch.company_id != self.company_id:
             raise ValidationError(_("الفرع لا يتبع نفس الشركة."))
 
-        if self.warehouse and self.company and self.warehouse.company_id != self.company_id:
+        if self.warehouse_id and self.company_id and self.warehouse.company_id != self.company_id:
             raise ValidationError(_("المخزن لا يتبع نفس الشركة."))
 
-        if self.supplier and self.company and self.supplier.company_id != self.company_id:
+        if self.supplier_id and self.company_id and self.supplier.company_id != self.company_id:
             raise ValidationError(_("المورد لا يتبع نفس الشركة."))
 
     def save(self, *args, **kwargs):

@@ -1,140 +1,424 @@
-# ERP System
+# TRUST ERP
 
-Django + React ERP MVP for multi-company operations. The backend is the source
-of business truth and exposes REST APIs; the frontend is a Vite/React
-operational UI for the current MVP workflows.
+Commercial ERP for multi-company, multi-branch operations. The Django backend is the source of business truth and exposes a JWT-protected REST API. The React frontend is the operational UI for the workflows that are wired today.
 
-## Current MVP Scope
+The UI brand in the sidebar is **TRUST ERP**. Navigation labels are Arabic. Most operational pages are English, with some Arabic titles (general ledger, users placeholder).
 
-Implemented backend domains:
+## Project Overview
 
-- Multi-company and branch-aware users, partners, products, warehouses, and
-  documents.
-- Inventory workflow with stock transactions, stock movements, stock balances,
-  stock posting, insufficient-stock checks, transfers, and weighted average cost
-  updates on inbound stock.
-- Sales invoice workflow with draft invoices, invoice items, posting, stock
-  reduction for stock products, accounting journal creation, and cancellation
-  via reversing stock/journal entries.
-- Purchase invoice workflow with draft invoices, invoice items, posting,
-  inventory increase, weighted average cost updates, and accounting journal
-  creation, and cancellation via reversing stock/journal entries.
-- Payment workflow with draft inbound/outbound payments, cash/bank selection,
-  posting, journal creation, and cancellation via reversing journal entries.
-- Accounting workflow with chart of accounts, journals, journal entries,
-  journal items, journal entry detail API, posted-entry immutability, and
-  payment/invoice posting entries.
-- Dashboard API with posted sales, posted purchases, inventory quantity,
-  receivable/payable summary, and low-stock count.
-- AI Assistant module for document upload, processing, retrieval comparison, and
-  question answering.
+The system covers company and branch setup, partners, inventory, sales invoices, purchase invoices, cash and bank payments, double-entry accounting, a dashboard, and a document question-answering assistant.
 
-Implemented frontend areas:
+Documents move through `draft` → `posted` → `cancelled`. Posting sales, purchases, stock transactions, and payments creates inventory effects and balanced journal entries. Cancelling a posted sales invoice, purchase invoice, or payment creates a reversing journal entry and, for stock products, a reversing stock transaction.
 
-- Authenticated layout with sidebar, navbar, footer, and protected routes.
-- Auto logout after 30 minutes of inactivity.
-- Dashboard summary.
-- Partners, products, warehouses, stock transactions, stock balances, stock
-  movements.
-- Purchase invoices: list, create draft, details, add items, post.
-- Sales invoices: list, create draft, details, add items, post.
-- Payments: list, create draft inbound/outbound payment, select cash/bank
-  account, post.
-- Journal entry drill-down from posted invoices and payments.
-- AI Assistant page.
+Company data is scoped to the authenticated user's company. Branch users are further scoped to their branch. Company-wide roles can see all branches of that company.
 
-## Accounting Behavior
-
-Sales invoice posting:
-
-- Reduces stock for non-service products through an `OUT` stock transaction.
-- Creates a posted sales journal entry.
-- Debits Accounts Receivable (`1003`) for the customer.
-- Credits Sales Revenue (`4001`).
-- Debits Cost of Goods Sold (`5001`) for stock products using product average
-  cost.
-- Credits Inventory (`1004`) for the same cost amount.
-- Service products do not create stock movements or COGS/inventory lines.
-
-Purchase invoice posting:
-
-- Increases inventory through an `IN` stock transaction.
-- Updates weighted average cost from incoming quantities and unit prices.
-- Creates a posted purchase journal entry.
-- Debits Inventory (`1004`).
-- Credits Accounts Payable (`2001`) for the supplier.
-
-Payment posting:
-
-- Supports inbound customer receipts and outbound supplier payments.
-- Uses cash or bank journals/accounts based on selected payment method/account.
-- Inbound payment debits the selected cash/bank asset account and credits
-  Accounts Receivable (`1003`) for the partner.
-- Outbound payment debits Accounts Payable (`2001`) for the partner and credits
-  the selected cash/bank asset account.
-- Payments settle AR/AP at partner-account balance level only. They are not yet
-  allocated to specific invoices.
-
-Reversal behavior:
-
-- Posted sales invoices can be cancelled through the backend/API/admin; this
-  marks the invoice cancelled, creates a reversing journal entry, and restores
-  stock for stock products through an inbound reversal transaction.
-- Posted purchase invoices can be cancelled through the backend/API/admin; this
-  marks the invoice cancelled, creates a reversing journal entry, and removes
-  stock through an outbound reversal transaction.
-- Posted payments can be cancelled through the backend/API/admin; this marks the
-  payment cancelled and creates a reversing journal entry.
-- Frontend operational pages show cancelled status and journal drill-down links,
-  but do not yet expose cancel buttons.
-
-## Important MVP Limitations
-
-- Sales invoices are credit-only in the MVP. There is no cash sale mode at
-  invoice creation.
-- Frontend cancel actions are not exposed yet; cancellation is available through
-  backend API/admin for sales invoices, purchase invoices, and payments.
-- Journal entry drill-down is detail-only. There is no full journal browser UI.
-- Payment allocation to specific invoices is missing.
-- Permissions are mostly authenticated-user/company scoped, not full role-based
-  permissions.
-- Branch scoping is incomplete in some list/report surfaces.
-- Inventory valuation is weighted-average only and lacks period close, landed
-  cost allocation, valuation layers, and audit reports.
-- Financial and inventory reports are missing beyond the dashboard summary.
-
-## Release Validation
-
-Current same-day submission validation:
-
-- Backend: `python manage.py check` passed with no issues.
-- Backend: `python manage.py test` passed, 120 tests run, 2 skipped.
-- Frontend: `npm.cmd run build` passed.
+Master data such as companies, branches, users, chart of accounts, journals, units, and categories is maintained in the Django admin (Unfold). The React app operates the day-to-day documents and reports listed below.
 
 ## Tech Stack
 
-- Backend: Django, Django REST Framework, PostgreSQL, SimpleJWT,
-  drf-spectacular.
-- Frontend: React, TypeScript, Vite, React Router, Axios, Zustand.
-- AI Assistant: PDF/DOCX ingestion, FAISS/sentence-transformers/LangChain/Ollama
-  stack.
+### Backend
 
-## Run Backend
+Pinned in `backend/requirements.txt`:
+
+| Area | Packages |
+| --- | --- |
+| Framework | Django 6.0.2, Django REST Framework 3.16.1 |
+| Database | PostgreSQL via `psycopg2-binary` 2.9.11, `dj-database-url` 3.0.1 |
+| Auth | `djangorestframework-simplejwt` 5.5.1, PyJWT 2.11.0 |
+| API schema | `drf-spectacular` 0.27.2 (OpenAPI, Swagger, ReDoc) |
+| Admin | `django-unfold` 0.79.0 |
+| HTTP / deploy | `django-cors-headers` 4.9.0, WhiteNoise 6.11.0, Gunicorn 23.0.0 |
+| Other | `django-filter`, `django-extensions`, Pillow, `python-dotenv`, `pydotplus` |
+| AI documents | `pypdf`, `python-docx`, `sentence-transformers`, `faiss-cpu`, LangChain, `langchain-community`, `langchain-ollama`, `ollama` |
+
+Django 6.0 requires Python 3.12 or newer.
+
+`django-filter` is installed and listed in `INSTALLED_APPS`. Report and list filters in the current views are implemented with serializers and queryset parameters, not `DjangoFilterBackend`.
+
+### Frontend
+
+From `frontend/package.json`:
+
+| Area | Packages |
+| --- | --- |
+| UI | React 19, React DOM 19 |
+| Build | Vite 8, TypeScript 6, `@vitejs/plugin-react` |
+| Routing | React Router 7 |
+| Data / state | Axios, Zustand (persisted auth store) |
+| Feedback | `react-hot-toast` |
+| Lint | ESLint 9, `typescript-eslint`, React Hooks and React Refresh plugins |
+
+There is no CSS framework and no component library. Layout and pages use inline styles plus `src/index.css` and `src/styles/theme.ts`.
+
+### Runtime services
+
+- PostgreSQL database.
+- For the AI assistant only: a local [Ollama](https://ollama.com/) server with the `llama3` model. Uploading and processing documents uses local embeddings and FAISS and does not call Ollama. Asking a question does.
+
+## Project Structure
+
+```text
+erp_system/
+├── README.md
+├── ERP_SYSTEM_CONTEXT.md
+├── BACKEND_ANALYSIS.md
+├── backend/
+│   ├── manage.py
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── API_ROADMAP.md
+│   ├── config/
+│   │   ├── settings.py
+│   │   ├── urls.py
+│   │   ├── asgi.py
+│   │   └── wsgi.py
+│   └── apps/
+│       ├── core/            # company, branch, sequences, audit, fiscal year, settings, dashboard
+│       ├── users/           # custom user, JWT auth, roles, permissions
+│       ├── partners/        # customers and suppliers
+│       ├── inventory/       # products, warehouses, stock documents, balances, reports
+│       ├── sales/           # sales invoices and posting/cancellation service
+│       ├── purchases/       # purchase invoices and posting/cancellation service
+│       ├── accounting/      # chart, journals, entries, payments, general ledger
+│       └── ai_assistant/    # PDF/DOCX upload, embeddings, FAISS, Q&A
+└── frontend/
+    ├── package.json
+    ├── vite.config.ts
+    ├── index.html
+    └── src/
+        ├── main.tsx
+        ├── App.tsx
+        ├── app/             # layout, protected routes, Zustand auth store
+        ├── components/      # navbar, sidebar, footer, shared MVP UI, Guard
+        ├── features/        # one folder per operational screen and its API client
+        ├── hooks/           # inactivity auto-logout
+        ├── lib/api/         # Axios client, endpoints, login, errors
+        ├── pages/           # login, users placeholder
+        └── styles/
+```
+
+Frontend feature folders: `dashboard`, `partners`, `products`, `warehouses`, `stock-transactions`, `stock-balances`, `stock-movements`, `inventory` (reports), `sales-invoices`, `purchase-invoices`, `payments`, `accounting`, `ai-assistant`, `auth`.
+
+## Implemented Modules & Features
+
+### Backend apps
+
+| App | API prefix | What it does |
+| --- | --- | --- |
+| `core` | `/api/dashboard/summary/` | Company-scoped dashboard totals. Admin for companies, branches, fiscal years, sequences, attachments, audit log, system settings. |
+| `users` | `/api/auth/` | Email login, refresh, current user, company/branch context. Role groups and action permissions. |
+| `partners` | `/api/partners/` | Partner CRUD, plus customer and supplier list actions. |
+| `inventory` | `/api/inventory/` | Units, products, warehouses, stock transactions, movements, balances, two reports. |
+| `sales` | `/api/sales/` | Sales invoices and line items, post, cancel. |
+| `purchases` | `/api/purchases/` | Purchase invoices and line items, post, cancel. |
+| `accounting` | `/api/accounting/` | Account lookup, journal-entry detail, payments, general ledger. |
+| `ai_assistant` | `/api/ai-assistant/` | Document upload, process, search, and question answering. |
+
+Root routes outside `/api/`:
+
+- `GET /` — JSON welcome payload
+- `GET /health/` — `{"status": "ok"}`
+- `/admin/` — Unfold admin
+- `GET /api/schema/`, `/api/docs/`, `/api/redoc/` — OpenAPI, Swagger, ReDoc
+
+Default API permission is authenticated. Login and token refresh are public. In `DEBUG`, the schema views are also public.
+
+### Auth and authorization
+
+- Custom user model: email is the username. Fields include full name, phone, job title, `user_type` (`system_admin`, `company_admin`, `branch_manager`, `employee`), company, and branch.
+- `POST /api/auth/login/` returns SimpleJWT access and refresh tokens. Access lifetime is 60 minutes. Refresh lifetime is 7 days.
+- `POST /api/auth/refresh/`, `GET /api/auth/me/`, `GET /api/auth/context/`.
+- `python manage.py setup_roles` creates Django groups: CompanyAdmin, BranchManager, SalesUser, SalesManager, PurchaseUser, PurchaseManager, InventoryUser, InventoryManager, Accountant, AccountingManager, Auditor, AIUser, AIAdmin.
+- Company-wide access: superuser, `system_admin`, `company_admin`, CompanyAdmin, AccountingManager, Auditor.
+- Action permissions gate posting and cancelling sales invoices, purchase invoices, payments, and stock transactions, and viewing the general ledger.
+- There is no user-management REST API. Users are created in the admin.
+
+### Partners
+
+`Partner` types: customer, supplier, or both. Codes are generated (`CUST-`, `SUP-`, `PRT-`). The API is a full viewset, plus `GET /api/partners/partners/customers/` and `GET /api/partners/partners/suppliers/`.
+
+The React partners page lists partners and shows counts. It does not create or edit them.
+
+### Inventory
+
+Master data API (full CRUD): units, products, warehouses.
+
+Product types: `storable`, `service`, `consumable`. SKU is generated (`PROD-`) when blank. Products store cost, weighted average cost, sale price, reorder point, and optional income and expense accounts. Posting services use the standard chart codes below; they do not read those product account fields.
+
+Warehouses belong to a branch and are `main` or `sub`. Codes use the `WH-` prefix.
+
+Stock documents:
+
+- Types: `IN`, `OUT`, `TRANSFER`.
+- Status: `draft`, `posted`, `cancelled`.
+- `POST /api/inventory/stock-transactions/{id}/post/` posts a draft, updates `StockBalance`, rejects insufficient available quantity, and updates weighted average cost on inbound quantity when unit cost is greater than zero.
+- Transfers require a different destination warehouse.
+- Service products cannot be stock movement lines.
+- Stock balances are list/retrieve only. They are updated by the stock service, not by direct client writes.
+
+Reports:
+
+- `GET /api/inventory/reports/product-movements/` — posted movements, filterable by product, warehouse, date range, and transaction type. Branch users see their branch.
+- `GET /api/inventory/reports/warehouse-balances/` — current balances, filterable by warehouse, product, and low stock.
+
+React pages for products, warehouses, stock transactions, stock balances, and stock movements are searchable/filterable lists. Creating and posting stock documents is done through the API or admin. Product movement history and warehouse balances are filterable report pages.
+
+### Sales invoices
+
+- Draft invoice, line items (quantity, unit price, computed line total), post, cancel.
+- Invoice numbers: `SINV-` per branch.
+- Posting a draft with a positive total creates an `OUT` stock transaction for non-service lines, using product average cost, then a posted sales journal.
+- A warehouse is required only when the invoice contains stock lines.
+- Service lines do not move stock and do not create COGS.
+- Cancellation of a posted invoice restores stock with an inbound reversal and posts a reversing journal entry.
+- Sales invoices are credit sales. There is no cash-sale mode.
+
+Journal on post (standard chart codes):
+
+- Debit Accounts Receivable `1003` (customer partner on the line).
+- Credit Sales Revenue `4001`.
+- Debit Cost of Goods Sold `5001` and credit Inventory `1004` when stock COGS is greater than zero.
+
+The React flow is list, create draft, open details, add lines while draft, post, and cancel/reverse a posted invoice, with a link to the journal entry.
+
+### Purchase invoices
+
+- Draft invoice, line items, post, cancel.
+- Invoice numbers: `PINV-` per branch.
+- Header fields include supplier bill number, shipping cost, clearance cost, and a supplier commission percentage.
+- Posting creates an `IN` stock transaction. Shipping and clearance are added to the invoice total and allocated into unit cost. Weighted average cost is updated from those allocated costs.
+- `commission_percentage` is stored and exposed by the serializer. It is not added to `total_amount` and is not posted to the ledger.
+- Cancellation of a posted invoice issues an outbound stock reversal and a reversing journal entry.
+
+Journal on post:
+
+- Debit Inventory `1004` for the invoice total.
+- Credit Accounts Payable `2001` for the supplier.
+
+The React flow matches sales: list, create, details, add lines, post, cancel/reverse, journal drill-down.
+
+### Payments
+
+- Types: `inbound` (customer receipt) and `outbound` (supplier payment).
+- Methods: `cash` or `bank`.
+- The selected account must be an active, postable asset account.
+- Voucher numbers are generated per branch.
+- Posting writes a journal in the cash journal (`CSH`) or bank journal (`BNK`) and uses the selected cash/bank account.
+- Inbound: debit cash/bank, credit Accounts Receivable `1003` for the partner.
+- Outbound: debit Accounts Payable `2001` for the partner, credit cash/bank. Outbound posting is rejected when the cash/bank account balance is lower than the amount.
+- Cancellation posts a reversing journal entry. It does not move stock.
+- Payments are not allocated to individual invoices. They settle partner AR/AP at account level.
+
+The React payments page lists payments, creates a draft, posts it, cancels/reverses a posted payment, and links to the journal entry. Summary cards count received, paid, and draft payments.
+
+### Accounting
+
+Models: chart of accounts (tree), journals (`sale`, `purchase`, `cash`, `bank`, `general`), journal entries, journal lines, payments.
+
+Posted and cancelled journal entries are immutable. Corrections are reversing entries. A posted entry must be balanced and non-zero.
+
+Migration `accounting.0005` seeds this chart per company:
+
+| Code | Name | Type | Postable |
+| --- | --- | --- | --- |
+| 1000 | Assets | asset | no |
+| 1001 | Bank | asset | yes |
+| 1002 | Cash | asset | yes |
+| 1003 | Accounts Receivable | asset | yes |
+| 1004 | Inventory | asset | yes |
+| 2000 | Liabilities | liability | no |
+| 2001 | Accounts Payable | liability | yes |
+| 3000 | Equity | equity | no |
+| 3001 | Owner Capital | equity | yes |
+| 4000 | Income | income | no |
+| 4001 | Sales Revenue | income | yes |
+| 5000 | Expenses | expense | no |
+| 5001 | Cost of Goods Sold | expense | yes |
+| 5002 | Operating Expenses | expense | yes |
+| 5003 | Purchase Expenses | expense | yes |
+
+API:
+
+- `GET /api/accounting/accounts/` — lookup of active postable accounts (read-only).
+- `GET /api/accounting/journal-entries/{id}/` — one entry with its lines. There is no journal-entry list or create API.
+- `GET /api/accounting/reports/general-ledger/` — posted journal lines, filterable by start date, end date, account, and partner. Requires an accounting-report role (CompanyAdmin, Accountant, AccountingManager, Auditor, or a company-wide user type / superuser).
+
+The React general ledger page calls that report and filters by date, account, and partner. The journal entry page is a detail view opened from invoices and payments.
+
+The sidebar shows Trial Balance, Balance Sheet, and Income Statement as disabled “coming soon” items. Those reports are not implemented.
+
+### Dashboard
+
+`GET /api/dashboard/summary/` returns, for posted documents in the user's company and branch scope:
+
+- total sales
+- total purchases
+- distinct inventory products
+- inventory quantity
+- customers receivable (`posted sales − posted inbound payments`)
+- suppliers payable (`posted purchases − posted outbound payments`)
+- low-stock balance count (`quantity <= reorder_point`)
+
+The React dashboard shows those metrics and also loads invoice, payment, and stock-balance lists for status counts and comparisons. Receivable and payable figures are operational summaries, not a full subledger.
+
+### AI assistant
+
+Isolated from ERP posting. It does not write accounting, inventory, sales, or purchase records.
+
+- Upload PDF or DOCX.
+- Process: extract text, chunk, embed with `sentence-transformers`, build a local FAISS index.
+- List chunks, semantic search, keyword search, delete (file, chunks, and FAISS index).
+- Ask a question: retrieve chunks and answer with Ollama `llama3`, returning citations.
+
+Endpoints under `/api/ai-assistant/documents/`: list/create, `DELETE {id}/`, `POST {id}/process/`, `GET {id}/chunks/`, `POST {id}/search/`, `POST {id}/keyword-search/`, `POST {id}/ask/`.
+
+The React page uploads, processes, deletes, asks questions, and compares keyword vs semantic retrieval.
+
+### Frontend routes
+
+Public: `/login`.
+
+Protected (JWT in the Zustand store; Axios sends `Authorization: Bearer`):
+
+| Path | Page |
+| --- | --- |
+| `/` | Redirects to `/dashboard` |
+| `/dashboard` | Dashboard |
+| `/partners` | Partner list |
+| `/products` | Product list with search and type filter |
+| `/warehouses` | Warehouse list |
+| `/stock-transactions` | Stock document list |
+| `/stock-balances` | Balance list |
+| `/stock-movements` | Movement lines |
+| `/product-movements` | Product movement history report |
+| `/warehouse-balances` | Warehouse balance report |
+| `/purchase-invoices` | Purchase invoice list |
+| `/purchase-invoices/new` | Create draft |
+| `/purchase-invoices/:id` | Details, add lines, post, cancel |
+| `/sales-invoices` | Sales invoice list |
+| `/sales-invoices/new` | Create draft |
+| `/sales-invoices/:id` | Details, add lines, post, cancel |
+| `/payments` | Payments |
+| `/general-ledger` | General ledger |
+| `/accounting/journal-entries/:id` | Journal entry detail |
+| `/ai-assistant` | AI assistant |
+
+`AppLayout` logs the user out after 30 minutes without mouse, keyboard, click, scroll, or touch activity. That timer is independent of the API access-token lifetime (60 minutes) and of `SystemSetting.session_timeout_minutes` (default 60, stored for admin settings, not read by the React timer).
+
+`UsersPage` (`/src/pages/UsersPage.tsx`) is a static Arabic placeholder. It does not call an API. `Guard` and `ProtectedRoute` contain optional role checks, but the auth types, auth store, and `App.tsx` route table that would supply `user.role` are inside unresolved Git conflict markers (see Setup). Do not treat frontend role gating or a users screen as a finished feature.
+
+### Not implemented
+
+- Trial balance, balance sheet, and income statement.
+- Payment allocation to specific invoices.
+- Cash sales at invoice time.
+- Frontend create/edit screens for partners, products, warehouses, and stock documents.
+- User administration API or a working users page.
+- Using product income/expense accounts, or purchase commission, in automatic journals.
+- Fiscal-year close. `FiscalYear` exists in the admin and is not enforced by posting services.
+- VAT calculation. `SystemSetting.default_vat_percentage` is stored and not applied to invoices.
+
+## Database Schema Summary
+
+Most business models use a UUID primary key through `BaseModel` (`created_at`, `updated_at`, `created_by`, `updated_by`) and write an `AuditLog` row on create and update. `SoftDeleteModel` adds `is_deleted`, `deleted_at`, and `deleted_by`. Uniqueness constraints on codes usually ignore soft-deleted rows.
+
+`User` and `Sequence` do not use that base. Users are deactivated with `is_active` instead of soft delete. `AuditLog`, `DocumentChunk`, and `Attachment` are separate tables.
+
+| Model | App | Role |
+| --- | --- | --- |
+| `Company` | core | Legal entity: name, logo, tax number, commercial record, contact, address. |
+| `Branch` | core | Belongs to a company. Auto code `BR-`. Address, phone, active flag. |
+| `FiscalYear` | core | Named period per company. One active year per company. `is_closed` is stored. |
+| `Sequence` | core | Locked counter used for document numbers. |
+| `SystemSetting` | core | Singleton: system name, maintenance flag, currency (default EGP), VAT percent, decimals, session timeout. |
+| `AuditLog` | core | Generic create/update/delete/restore log with JSON changes. |
+| `Attachment` | core | Generic file attached to any model. |
+| `User` | users | Email login, company, branch, user type. |
+| `Partner` | partners | Customer, supplier, or both. Credit limit, opening balance, tax data. `current_balance` is computed from posted journal lines. |
+| `Unit` | inventory | Global unit name and short name. |
+| `Category` | inventory | Company product category tree. |
+| `Product` | inventory | Company product card: type, SKU, barcode, prices, average cost, reorder point, optional GL accounts. |
+| `Warehouse` | inventory | Company warehouse on a branch, with an optional keeper. |
+| `StockTransaction` | inventory | IN / OUT / TRANSFER document. Optional link to one journal entry. |
+| `StockMovement` | inventory | Line: product, quantity, unit cost. |
+| `StockBalance` | inventory | Quantity, reserved quantity, location, reorder point per company, product, and warehouse. |
+| `SalesInvoice` | sales | Branch, customer, optional warehouse, status, total, journal entry, post/cancel audit fields. |
+| `SalesInvoiceItem` | sales | Product, quantity, unit price, line total. |
+| `PurchaseInvoice` | purchases | Branch, supplier, warehouse, vendor bill number, shipping, clearance, commission percent, status, journal entry. |
+| `PurchaseInvoiceItem` | purchases | Product, quantity, unit price, line total. |
+| `Account` | accounting | Company chart node: code, type, normal balance, parent, postable, reconciliation flag. |
+| `Journal` | accounting | Named book with a type and optional default account. |
+| `JournalEntry` | accounting | Draft, posted, or cancelled entry in a journal. |
+| `JournalItem` | accounting | Account, optional partner, description, debit, credit. |
+| `Payment` | accounting | Inbound/outbound voucher, cash or bank account, amount, journal entry, post/cancel audit fields. |
+| `Document` | ai_assistant | Uploaded PDF/DOCX and processing status. |
+| `DocumentChunk` | ai_assistant | Chunk text, page span, JSON embedding, embedding model name. |
+
+## Setup & Installation
+
+### Current workspace note
+
+These files contain unresolved Git conflict markers and will not import or type-check until the conflicts are resolved:
+
+- `backend/config/settings.py`
+- `backend/.env.example`
+- `backend/apps/core/tests/test_settings_security.py`
+- `frontend/src/App.tsx`
+- `frontend/src/app/store/auth-store.ts`
+- `frontend/src/features/auth/types.ts`
+
+The sections below describe the configuration those files are written to use once the markers are removed.
+
+### Backend
+
+1. Install Python 3.12+ and PostgreSQL. Create a database (the sample name is `erp_db`).
+2. From `backend/`, create a virtual environment and install dependencies:
 
 ```powershell
 cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python manage.py check
+```
+
+3. Copy `backend/.env.example` to `backend/.env` after the conflict in that example file is resolved. Local values:
+
+```text
+DEBUG=True
+SECRET_KEY=change-me-to-a-long-random-secret
+DB_NAME=erp_db
+DB_USER=postgres
+DB_PASSWORD=your-db-password
+DB_HOST=localhost
+DB_PORT=5432
+ALLOWED_HOSTS=127.0.0.1,localhost
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+CSRF_TRUSTED_ORIGINS=http://localhost:5173
+CORS_ALLOW_CREDENTIALS=True
+CORS_ALLOW_ALL_ORIGINS=False
+```
+
+`settings.py` reads `DATABASE_URL` on one side of the current conflict and discrete `DB_*` variables on both sides. Use `DB_*` unless you keep the `DATABASE_URL` branch when resolving the conflict. With `DEBUG=False`, `SECRET_KEY` and `ALLOWED_HOSTS` are required, and `CORS_ALLOW_ALL_ORIGINS` cannot be true.
+
+4. Migrate, create roles, and create an admin user:
+
+```powershell
+python manage.py migrate
+python manage.py setup_roles
+python manage.py createsuperuser
+```
+
+5. Run the API on port **9000**. The frontend client is hardcoded to `http://127.0.0.1:9000/api`.
+
+```powershell
 python manage.py runserver 9000
 ```
 
-API documentation:
+6. In `/admin/`, create a company, branch, and a non-superuser linked to that company (and branch, unless the user is a company-wide admin). Assign the groups from `setup_roles` that match the work they should post or cancel. Chart-of-accounts rows are created by migration `0005` for companies that exist when it runs; new companies need the standard accounts present before invoice or payment posting, because posting looks up codes `1001`–`1004`, `2001`, `4001`, and `5001`.
 
-- `GET /api/schema/`
-- `GET /api/docs/`
-- `GET /api/redoc/`
+API docs (when `DEBUG=True`): [http://127.0.0.1:9000/api/docs/](http://127.0.0.1:9000/api/docs/).
 
-## Run Frontend
+### Frontend
 
 ```powershell
 cd frontend
@@ -142,9 +426,17 @@ npm install
 npm run dev
 ```
 
-## Documentation
+Vite’s default dev server is [http://localhost:5173](http://localhost:5173). `npm run build` runs `tsc -b` and then the production build. `npm run lint` runs ESLint.
 
-- Master project context: `ERP_SYSTEM_CONTEXT.md`
-- Backend API roadmap: `backend/API_ROADMAP.md`
-- Frontend documentation: `frontend/README.md`
-- AI Assistant module details: `backend/apps/ai_assistant/README.md`
+Sign in with the email and password of a user that has a company. The access token is stored by Zustand and sent on later API calls.
+
+### AI assistant
+
+Processing and search need the Python AI packages from `requirements.txt` (sentence-transformers and FAISS download or load a local embedding model on first use). Question answering also needs Ollama running locally with `llama3` pulled. Uploaded files are stored under the Django media directory.
+
+### Other docs in the repo
+
+- `ERP_SYSTEM_CONTEXT.md` — longer project context. Treat this README as the description of the code that is present now.
+- `backend/API_ROADMAP.md` — API notes and planned work.
+- `frontend/README.md` — frontend route and UI notes.
+- `backend/apps/ai_assistant/README.md` — AI pipeline and request examples.

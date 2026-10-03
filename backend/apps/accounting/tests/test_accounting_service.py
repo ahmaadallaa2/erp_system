@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 
 from apps.core.models.company import Company, Branch
-from apps.accounting.models.account import Account
+from apps.accounting.tests.helpers import ensure_account
 from apps.inventory.models import Category, Unit, Product, Warehouse
 from apps.partners.models import Partner
 from apps.purchases.models.purchase_invoice import PurchaseInvoice
@@ -30,7 +30,7 @@ class AccountingServiceTestCase(TestCase):
             name="Supplier A"
         )
 
-        self.asset_customer = Account.objects.create(
+        self.asset_customer = ensure_account(
             company=self.company,
             code="1003",
             name="Customers",
@@ -40,7 +40,7 @@ class AccountingServiceTestCase(TestCase):
             allow_reconciliation=True,
         )
 
-        self.asset_inventory = Account.objects.create(
+        self.asset_inventory = ensure_account(
             company=self.company,
             code="1004",
             name="Inventory",
@@ -49,7 +49,7 @@ class AccountingServiceTestCase(TestCase):
             is_postable=True,
         )
 
-        self.asset_cash = Account.objects.create(
+        self.asset_cash = ensure_account(
             company=self.company,
             code="1002",
             name="Cash",
@@ -58,7 +58,7 @@ class AccountingServiceTestCase(TestCase):
             is_postable=True,
         )
 
-        self.liability_supplier = Account.objects.create(
+        self.liability_supplier = ensure_account(
             company=self.company,
             code="2001",
             name="Suppliers",
@@ -68,7 +68,7 @@ class AccountingServiceTestCase(TestCase):
             allow_reconciliation=True,
         )
 
-        self.income_sales = Account.objects.create(
+        self.income_sales = ensure_account(
             company=self.company,
             code="4001",
             name="Sales Revenue",
@@ -77,7 +77,7 @@ class AccountingServiceTestCase(TestCase):
             is_postable=True,
         )
 
-        self.expense_purchase = Account.objects.create(
+        self.expense_purchase = ensure_account(
             company=self.company,
             code="5001",
             name="Cost of Goods Sold",

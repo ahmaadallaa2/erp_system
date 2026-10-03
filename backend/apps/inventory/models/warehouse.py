@@ -73,15 +73,16 @@ class Warehouse(SoftDeleteModel):
         ]
 
     def __str__(self):
-        return f"{self.name} - {self.get_warehouse_type_display()} ({self.branch.name})"
+        branch_name = self.branch.name if self.branch_id else "-"
+        return f"{self.name} - {self.get_warehouse_type_display()} ({branch_name})"
 
     def clean(self):
         super().clean()
 
-        if self.branch and self.company and self.branch.company_id != self.company_id:
+        if self.branch_id and self.company_id and self.branch.company_id != self.company_id:
             raise ValidationError(_("الفرع المختار لا يتبع نفس الشركة."))
 
-        if self.keeper and getattr(self.keeper, 'company_id', None):
+        if self.keeper_id and self.keeper.company_id:
             if self.company_id and self.keeper.company_id != self.company_id:
                 raise ValidationError(_("أمين المخزن يجب أن يتبع نفس الشركة."))
 

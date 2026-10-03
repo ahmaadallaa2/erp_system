@@ -1,3 +1,6 @@
+from django.db import transaction
+
+
 STANDARD_CHART_OF_ACCOUNTS = [
     {
         "code": "1000",
@@ -150,6 +153,11 @@ STANDARD_CHART_OF_ACCOUNTS = [
         "parent_code": "5000",
     },
 ]
+
+
+def create_default_chart_of_accounts(company_instance):
+    with transaction.atomic():
+        return seed_standard_chart_of_accounts(company_instance)
 
 
 def seed_standard_chart_of_accounts(company, account_model=None):

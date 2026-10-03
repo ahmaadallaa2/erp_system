@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 
 from apps.core.models.company import Company, Branch
-from apps.accounting.models.account import Account
+from apps.accounting.tests.helpers import ensure_account
 from apps.accounting.models.entry import JournalEntry, JournalItem
 from apps.accounting.models.journal import Journal
 from apps.accounting.models.payment import Payment
@@ -33,7 +33,7 @@ class PaymentServiceTestCase(TestCase):
             name="Supplier A"
         )
 
-        self.cash_account = Account.objects.create(
+        self.cash_account = ensure_account(
             company=self.company,
             code="1002",
             name="Cash",
@@ -42,7 +42,7 @@ class PaymentServiceTestCase(TestCase):
             is_postable=True,
         )
 
-        self.receivable_account = Account.objects.create(
+        self.receivable_account = ensure_account(
             company=self.company,
             code="1003",
             name="Customers",
@@ -52,7 +52,7 @@ class PaymentServiceTestCase(TestCase):
             allow_reconciliation=True,
         )
 
-        self.payable_account = Account.objects.create(
+        self.payable_account = ensure_account(
             company=self.company,
             code="2001",
             name="Suppliers",
@@ -122,7 +122,7 @@ class PaymentServiceTestCase(TestCase):
             credit=Decimal("0.00"),
         )
 
-        equity_account = Account.objects.create(
+        equity_account = ensure_account(
             company=self.company,
             code="3001",
             name="Owner Equity",
@@ -447,7 +447,7 @@ class PaymentServiceTestCase(TestCase):
             credit=Decimal("0.00"),
         )
 
-        equity_account = Account.objects.create(
+        equity_account = ensure_account(
             company=self.company,
             code="3001",
             name="Owner Equity",

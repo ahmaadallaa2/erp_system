@@ -1,11 +1,13 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .serializers import (
     CustomTokenObtainPairSerializer,
+    CustomTokenRefreshSerializer,
     MeSerializer,
     ContextSerializer,
 )
@@ -20,6 +22,8 @@ from .serializers import (
 )
 class LoginAPIView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
 
 @extend_schema(
@@ -28,7 +32,9 @@ class LoginAPIView(TokenObtainPairView):
     description="Refresh access token using a valid refresh token.",
 )
 class RefreshAPIView(TokenRefreshView):
-    pass
+    serializer_class = CustomTokenRefreshSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
 
 @extend_schema(

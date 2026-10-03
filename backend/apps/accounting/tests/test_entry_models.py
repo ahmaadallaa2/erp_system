@@ -4,7 +4,7 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 
 from apps.core.models.company import Company
-from apps.accounting.models.account import Account
+from apps.accounting.tests.helpers import ensure_account
 from apps.accounting.models.journal import Journal
 from apps.accounting.models.entry import JournalEntry, JournalItem
 
@@ -20,7 +20,7 @@ class JournalEntryModelTestCase(TestCase):
             type="general",
         )
 
-        self.cash_account = Account.objects.create(
+        self.cash_account = ensure_account(
             company=self.company,
             code="1002",
             name="Cash",
@@ -29,7 +29,7 @@ class JournalEntryModelTestCase(TestCase):
             is_postable=True,
         )
 
-        self.revenue_account = Account.objects.create(
+        self.revenue_account = ensure_account(
             company=self.company,
             code="4001",
             name="Revenue",

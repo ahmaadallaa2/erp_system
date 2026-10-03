@@ -73,7 +73,9 @@ class StockBalance(BaseModel):
         ]
 
     def __str__(self):
-        return f"{self.product.name} | {self.warehouse.name}: {self.quantity}"
+        product_name = self.product.name if self.product_id else "-"
+        warehouse_name = self.warehouse.name if self.warehouse_id else "-"
+        return f"{product_name} | {warehouse_name}: {self.quantity}"
 
     @property
     def available_quantity(self):
@@ -82,10 +84,10 @@ class StockBalance(BaseModel):
     def clean(self):
         super().clean()
 
-        if self.product and self.company and self.product.company_id != self.company_id:
+        if self.product_id and self.company_id and self.product.company_id != self.company_id:
             raise ValidationError(_("المنتج لا يتبع نفس الشركة."))
 
-        if self.warehouse and self.company and self.warehouse.company_id != self.company_id:
+        if self.warehouse_id and self.company_id and self.warehouse.company_id != self.company_id:
             raise ValidationError(_("المخزن لا يتبع نفس الشركة."))
 
     def save(self, *args, **kwargs):

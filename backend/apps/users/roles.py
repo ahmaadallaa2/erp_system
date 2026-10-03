@@ -1,4 +1,6 @@
+from django.apps import apps as global_apps
 from django.contrib.auth.models import Group
+from django.db import DEFAULT_DB_ALIAS
 from django.db.models import Q
 
 
@@ -72,13 +74,163 @@ ROLE_ACTIONS = {
 }
 
 
+VIEW = ("view",)
+EDIT = ("view", "add", "change")
+
+
+def _model_perms(app_label, model_names, actions):
+    return {
+        f"{app_label}.{action}_{model_name}"
+        for model_name in model_names
+        for action in actions
+    }
+
+
+_INVENTORY_MASTER = ("product", "category", "unit")
+_INVENTORY_DOCUMENTS = ("stocktransaction", "stockmovement")
+_SALES_MODELS = ("salesinvoice", "salesinvoiceitem")
+_PURCHASE_MODELS = ("purchaseinvoice", "purchaseinvoiceitem")
+_ACCOUNTING_CHART = ("account", "journal")
+_ACCOUNTING_ENTRIES = ("journalentry", "journalitem")
+
+_STOCK_LOOKUP = _model_perms("inventory", ("product", "warehouse", "stockbalance"), VIEW)
+
+_BUSINESS_VIEW = (
+    _model_perms("partners", ("partner",), VIEW)
+    | _model_perms(
+        "inventory",
+        _INVENTORY_MASTER + ("warehouse", "stockbalance") + _INVENTORY_DOCUMENTS,
+        VIEW,
+    )
+    | _model_perms("sales", _SALES_MODELS, VIEW)
+    | _model_perms("purchases", _PURCHASE_MODELS, VIEW)
+    | _model_perms("accounting", _ACCOUNTING_CHART + _ACCOUNTING_ENTRIES + ("payment",), VIEW)
+)
+
+_SALES_ROLE_PERMS = (
+    _model_perms("partners", ("partner",), EDIT)
+    | _STOCK_LOOKUP
+    | _model_perms("sales", _SALES_MODELS, EDIT)
+)
+_PURCHASE_ROLE_PERMS = (
+    _model_perms("partners", ("partner",), EDIT)
+    | _STOCK_LOOKUP
+    | _model_perms("purchases", _PURCHASE_MODELS, EDIT)
+)
+_INVENTORY_ROLE_PERMS = (
+    _STOCK_LOOKUP
+    | _model_perms("inventory", ("category", "unit"), VIEW)
+    | _model_perms("inventory", _INVENTORY_DOCUMENTS, EDIT)
+)
+_ACCOUNTANT_PERMS = (
+    _model_perms("accounting", _ACCOUNTING_CHART, VIEW)
+    | _model_perms("accounting", _ACCOUNTING_ENTRIES + ("payment",), EDIT)
+    | _model_perms("partners", ("partner",), VIEW)
+    | _model_perms("sales", ("salesinvoice",), VIEW)
+    | _model_perms("purchases", ("purchaseinvoice",), VIEW)
+)
+_AI_USER_PERMS = (
+    _model_perms("ai_assistant", ("document",), ("view", "add"))
+    | _model_perms("ai_assistant", ("documentchunk",), VIEW)
+)
+
+# Django model permissions per role (they drive the admin site only; API
+# actions are gated by ROLE_ACTIONS). No role gets delete or users/auth
+# permissions: deletion and user management stay with superusers.
+ROLE_MODEL_PERMISSIONS = {
+    ROLE_COMPANY_ADMIN: (
+        _model_perms("partners", ("partner",), EDIT)
+        | _model_perms("inventory", _INVENTORY_MASTER + ("warehouse",) + _INVENTORY_DOCUMENTS, EDIT)
+        | _model_perms("inventory", ("stockbalance",), VIEW)
+        | _model_perms("sales", _SALES_MODELS, EDIT)
+        | _model_perms("purchases", _PURCHASE_MODELS, EDIT)
+        | _model_perms("accounting", _ACCOUNTING_CHART + _ACCOUNTING_ENTRIES + ("payment",), EDIT)
+        | _model_perms("core", ("company",), VIEW)
+        | _model_perms("core", ("branch", "fiscalyear"), EDIT)
+        | _model_perms("core", ("auditlog",), VIEW)
+    ),
+    ROLE_BRANCH_MANAGER: (
+        _BUSINESS_VIEW
+        | _model_perms("partners", ("partner",), EDIT)
+        | _model_perms("sales", _SALES_MODELS, EDIT)
+        | _model_perms("purchases", _PURCHASE_MODELS, EDIT)
+        | _model_perms("inventory", _INVENTORY_DOCUMENTS, EDIT)
+    ),
+    ROLE_SALES_USER: _SALES_ROLE_PERMS,
+    ROLE_SALES_MANAGER: _SALES_ROLE_PERMS,
+    ROLE_PURCHASE_USER: _PURCHASE_ROLE_PERMS,
+    ROLE_PURCHASE_MANAGER: _PURCHASE_ROLE_PERMS,
+    ROLE_INVENTORY_USER: _INVENTORY_ROLE_PERMS,
+    ROLE_INVENTORY_MANAGER: (
+        _INVENTORY_ROLE_PERMS
+        | _model_perms("inventory", _INVENTORY_MASTER + ("warehouse",), EDIT)
+    ),
+    ROLE_ACCOUNTANT: _ACCOUNTANT_PERMS,
+    ROLE_ACCOUNTING_MANAGER: (
+        _ACCOUNTANT_PERMS
+        | _model_perms("accounting", _ACCOUNTING_CHART, EDIT)
+        | _model_perms("core", ("fiscalyear",), EDIT)
+    ),
+    ROLE_AUDITOR: (
+        _BUSINESS_VIEW
+        | _model_perms("core", ("company", "branch", "fiscalyear", "auditlog"), VIEW)
+    ),
+    ROLE_AI_USER: _AI_USER_PERMS,
+    ROLE_AI_ADMIN: _AI_USER_PERMS | _model_perms("ai_assistant", ("document",), ("change",)),
+}
+
+
+def sync_role_groups(app_label=None, using=DEFAULT_DB_ALIAS, apps=global_apps):
+    """
+    Create missing role groups and grant their mapped model permissions.
+
+    Pass `app_label` to grant only that app's permissions. Permissions are only
+    added, never removed, so manual grants made in the admin are kept.
+    Returns the number of groups created.
+    """
+    group_model = apps.get_model("auth", "Group")
+    permission_model = apps.get_model("auth", "Permission")
+
+    groups = {
+        group.name: group
+        for group in group_model.objects.using(using).filter(name__in=SYSTEM_ROLES)
+    }
+    missing = [name for name in SYSTEM_ROLES if name not in groups]
+    for name in missing:
+        groups[name] = group_model.objects.using(using).create(name=name)
+
+    wanted = {
+        role: {
+            tuple(perm.split(".", 1))
+            for perm in perms
+            if app_label is None or perm.split(".", 1)[0] == app_label
+        }
+        for role, perms in ROLE_MODEL_PERMISSIONS.items()
+    }
+    needed = set().union(*wanted.values())
+    if not needed:
+        return len(missing)
+
+    permissions = {
+        (perm.content_type.app_label, perm.codename): perm
+        for perm in permission_model.objects.using(using)
+        .filter(
+            content_type__app_label__in={label for label, _ in needed},
+            codename__in={codename for _, codename in needed},
+        )
+        .select_related("content_type")
+    }
+
+    for role, keys in wanted.items():
+        role_permissions = [permissions[key] for key in keys if key in permissions]
+        if role_permissions:
+            groups[role].permissions.add(*role_permissions)
+
+    return len(missing)
+
+
 def create_default_groups():
-    created_count = 0
-    for role_name in SYSTEM_ROLES:
-        _, created = Group.objects.get_or_create(name=role_name)
-        if created:
-            created_count += 1
-    return created_count
+    return sync_role_groups()
 
 
 def user_role_names(user):
