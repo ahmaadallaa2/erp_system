@@ -10,7 +10,7 @@ class AuditLog(models.Model):
     سجل التتبع (الصندوق الأسود).
     يخزن تفاصيل كل حركة تحدث في النظام.
     """
-    
+
     # ====================
     # 1. ثوابت العمليات (Constants)
     # ====================
@@ -18,7 +18,7 @@ class AuditLog(models.Model):
     ACTION_UPDATE = 'update'
     ACTION_DELETE = 'delete'
     ACTION_RESTORE = 'restore'
-    
+
     ACTION_CHOICES = (
         (ACTION_CREATE, _('إضافة')),
         (ACTION_UPDATE, _('تعديل')),
@@ -30,24 +30,24 @@ class AuditLog(models.Model):
     # 2. الحقول الأساسية (Fields)
     # ====================
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
         verbose_name=_("المستخدم")
     )
 
     action = models.CharField(_("نوع العملية"), max_length=15, choices=ACTION_CHOICES)
-    
+
     # الربط الديناميكي مع أي جدول آخر
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.CharField(max_length=50) # يستوعب الـ UUID والأرقام
     content_object = GenericForeignKey('content_type', 'object_id')
 
     changes = models.JSONField(_("التغييرات"), null=True, blank=True)
-    
+
     timestamp = models.DateTimeField(_("وقت العملية"), auto_now_add=True)
-    
+
     ip_address = models.GenericIPAddressField(_("IP Address"), null=True, blank=True)
     browser_info = models.TextField(_("معلومات المتصفح"), null=True, blank=True)
 

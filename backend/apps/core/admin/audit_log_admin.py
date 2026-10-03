@@ -65,7 +65,8 @@ class AuditLogAdmin(ModelAdmin):
         if obj.changes:
             pretty_json = json.dumps(obj.changes, indent=4, ensure_ascii=False)
             return format_html(
-                '<pre style="direction: ltr; text-align: left; background-color: #f8f9fa; padding: 10px; border-radius: 5px; white-space: pre-wrap;">{}</pre>',
+                '<pre style="direction: ltr; text-align: left; background-color: #f8f9fa; '
+                'padding: 10px; border-radius: 5px; white-space: pre-wrap;">{}</pre>',
                 pretty_json
             )
         return "لا توجد تغييرات"

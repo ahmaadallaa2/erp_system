@@ -13,13 +13,30 @@ class SystemSetting(BaseModel):
     """
     # --- إعدادات عامة ---
     system_name = models.CharField(_("اسم النظام"), max_length=100, default="My ERP")
-    is_maintenance_mode = models.BooleanField(_("وضع الصيانة"), default=False, help_text=_("إذا تم تفعيله، لن يتمكن الموظفون من الدخول."))
-    allow_registration = models.BooleanField(_("السماح بالتسجيل"), default=False, help_text=_("هل يسمح للمستخدمين الجدد بإنشاء حسابات بأنفسهم؟"))
+    is_maintenance_mode = models.BooleanField(
+        _("وضع الصيانة"),
+        default=False,
+        help_text=_("إذا تم تفعيله، لن يتمكن الموظفون من الدخول."),
+    )
+    allow_registration = models.BooleanField(
+        _("السماح بالتسجيل"),
+        default=False,
+        help_text=_("هل يسمح للمستخدمين الجدد بإنشاء حسابات بأنفسهم؟"),
+    )
 
     # --- إعدادات مالية ---
     default_currency = models.CharField(_("العملة الافتراضية"), max_length=10, default="EGP")
-    default_vat_percentage = models.DecimalField(_("نسبة ضريبة القيمة المضافة (%)"), max_digits=5, decimal_places=2, default=Decimal("14.00"))
-    decimal_places = models.PositiveSmallIntegerField(_("عدد الكسور العشرية"), default=2, help_text=_("للأرقام المالية (مثلاً 2 لـ 10.50)"))
+    default_vat_percentage = models.DecimalField(
+        _("نسبة ضريبة القيمة المضافة (%)"),
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("14.00"),
+    )
+    decimal_places = models.PositiveSmallIntegerField(
+        _("عدد الكسور العشرية"),
+        default=2,
+        help_text=_("للأرقام المالية (مثلاً 2 لـ 10.50)"),
+    )
 
     # --- إعدادات تقنية ---
     session_timeout_minutes = models.PositiveIntegerField(_("وقت انتهاء الجلسة (دقيقة)"), default=60)

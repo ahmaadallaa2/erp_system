@@ -66,7 +66,9 @@ class Product(SoftDeleteModel):
     image = models.ImageField(_("صورة المنتج"), upload_to=product_image_path, null=True, blank=True)
     description = models.TextField(_("وصف تفصيلي"), null=True, blank=True)
 
-    cost_price = models.DecimalField(_("سعر التكلفة الافتراضي"), max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    cost_price = models.DecimalField(
+        _("سعر التكلفة الافتراضي"), max_digits=12, decimal_places=2, default=Decimal("0.00")
+    )
     average_cost = models.DecimalField(_("متوسط التكلفة"), max_digits=12, decimal_places=2, default=Decimal("0.00"))
     sale_price = models.DecimalField(_("سعر البيع الافتراضي"), max_digits=12, decimal_places=2, default=Decimal("0.00"))
     reorder_point = models.DecimalField(_("حد الطلب"), max_digits=10, decimal_places=2, default=Decimal("0.00"))

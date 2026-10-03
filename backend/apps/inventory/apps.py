@@ -5,4 +5,3 @@ class InventoryConfig(AppConfig):
     name = 'apps.inventory'  # <--- مهم جداً تكتب المسار كامل
     verbose_name = "المخازن والمنتجات"
 
-  

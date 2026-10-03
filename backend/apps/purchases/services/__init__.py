@@ -1,1 +1,3 @@
-from . import purchase_service
+from .purchase_service import PurchaseService
+
+__all__ = ['PurchaseService']

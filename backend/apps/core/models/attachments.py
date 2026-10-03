@@ -13,13 +13,13 @@ def get_attachment_upload_path(instance, filename):
     """
     model_name = instance.content_type.model
     object_id = instance.object_id
-    
+
     # استخراج الامتداد الأصلي (مثل .pdf)
     ext = os.path.splitext(filename)[1].lower()
-    
+
     # توليد اسم عشوائي آمن للملف الفعلي على السيرفر
     safe_filename = f"{uuid.uuid4().hex}{ext}"
-    
+
     return f"attachments/{model_name}/{object_id}/{safe_filename}"
 
 
@@ -29,13 +29,13 @@ class Attachment(BaseModel):
     يسمح برفع ملفات (صور، PDF، Excel) وربطها بأي كائن في النظام.
     """
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.CharField(max_length=50) 
+    object_id = models.CharField(max_length=50)
     content_object = GenericForeignKey('content_type', 'object_id')
 
     file = models.FileField(_("الملف"), upload_to=get_attachment_upload_path)
     name = models.CharField(_("اسم توضيحي"), max_length=255, blank=True)
     note = models.TextField(_("ملاحظات"), null=True, blank=True)
-    
+
     file_type = models.CharField(_("نوع الامتداد"), max_length=10, blank=True)
 
     class Meta:
@@ -61,11 +61,11 @@ class Attachment(BaseModel):
         if self.file:
             # جلب اسم الملف الفعلي بدون المسارات الطويلة
             original_filename = os.path.basename(self.file.name)
-            
+
             # لو المستخدم مدخلش اسم توضيحي، نستخدم اسم الملف
             if not self.name:
                 self.name = original_filename[:255] # قص الاسم لضمان عدم تخطي الـ max_length
-                
+
             # استخراج الامتداد لتسهيل الفلترة
             ext = os.path.splitext(original_filename)[1][1:].lower()
             self.file_type = ext[:10] # ضمان عدم تخطي الـ max_length للامتداد

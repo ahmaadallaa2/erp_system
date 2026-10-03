@@ -181,7 +181,8 @@ class JournalEntryAdmin(ModelAdmin):
         text_color, bg_color, label = styles.get(obj.status, ('#333', '#eee', obj.status))
 
         return format_html(
-            '<span style="background-color: {}; color: {}; padding: 2px 10px; border-radius: 12px; font-weight: bold;">{}</span>',
+            '<span style="background-color: {}; color: {}; padding: 2px 10px; '
+            'border-radius: 12px; font-weight: bold;">{}</span>',
             bg_color, text_color, label
         )
 

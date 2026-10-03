@@ -30,7 +30,6 @@ erp_system/
   README.md
   ERP_SYSTEM_CONTEXT.md
   backend/
-    API_ROADMAP.md
     manage.py
     requirements.txt
     config/
@@ -66,7 +65,7 @@ Backend:
 - PostgreSQL.
 - SimpleJWT.
 - drf-spectacular for OpenAPI, Swagger, and ReDoc.
-- django-cors-headers and django-filter.
+- django-cors-headers.
 - django-unfold for admin UI.
 - AI dependencies include pypdf, python-docx, sentence-transformers, FAISS,
   LangChain, LangChain Ollama, and Ollama.

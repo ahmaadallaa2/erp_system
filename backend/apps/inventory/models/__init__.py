@@ -5,3 +5,13 @@ from .warehouse import Warehouse
 from .stock_balance import StockBalance
 from .stock_movement import StockMovement
 from .stock_transaction import StockTransaction
+
+__all__ = [
+    'Product',
+    'Category',
+    'Unit',
+    'Warehouse',
+    'StockBalance',
+    'StockMovement',
+    'StockTransaction',
+]

@@ -8,4 +8,3 @@ class SoftDeleteManager(models.Manager):
         # أي كويري هتم، هنزود عليها شرط: is_deleted = False
         return super().get_queryset().filter(is_deleted=False)
 
-   

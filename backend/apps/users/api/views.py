@@ -121,7 +121,9 @@ def _uuid_param(request, name):
         ),
         tags=["Users"],
         parameters=[
-            OpenApiParameter("search", OpenApiTypes.STR, OpenApiParameter.QUERY, description="Search email or full name."),
+            OpenApiParameter(
+                "search", OpenApiTypes.STR, OpenApiParameter.QUERY, description="Search email or full name."
+            ),
             OpenApiParameter(
                 "user_type",
                 OpenApiTypes.STR,

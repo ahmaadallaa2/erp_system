@@ -1,17 +1,16 @@
-from datetime import timedelta
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
-from dotenv import load_dotenv
-from django.urls import reverse_lazy
-from django.utils.translation import gettext_lazy as _
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+from django.urls import reverse_lazy
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 
 if os.getenv('SKIP_DOTENV') != 'True':
     load_dotenv(BASE_DIR / '.env')
+
 
 # -----------------------------------------------------------------------------
 # Security / Environment
@@ -100,7 +99,8 @@ INSTALLED_APPS = [
     "unfold.contrib.filters",
     "unfold.contrib.forms",
     "unfold.contrib.inlines",
-    #django apps
+
+    # Django apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -113,9 +113,8 @@ INSTALLED_APPS = [
     'corsheaders',
     "rest_framework_simplejwt",
     "drf_spectacular",
-    "django_filters",
 
-    # My apps
+    # Project apps
     'apps.core',
     'apps.users',
     'apps.inventory',
@@ -137,14 +136,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-
-    # لو هتستخدم LoginRequiredMiddleware خليك واعي إنه قد يؤثر على الـ APIs
-    #'django.contrib.auth.middleware.LoginRequiredMiddleware',
-
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-
-    # آخر واحد حتى يكون user جاهز
+    # Must run after AuthenticationMiddleware so request.user is populated.
     'apps.core.middleware.ThreadLocalMiddleware',
 ]
 
@@ -316,6 +310,10 @@ def is_branch_manager(request):
     return request.user.is_authenticated and request.user.groups.filter(name='BranchManager').exists()
 
 
+def perm_or_superuser(perm_name):
+    return lambda request: has_perm(request, perm_name) or is_superuser(request)
+
+
 # -----------------------------------------------------------------------------
 # Unfold Admin Settings
 # -----------------------------------------------------------------------------
@@ -366,13 +364,13 @@ UNFOLD = {
                         "title": "العملاء",
                         "icon": "groups",
                         "link": "/admin/partners/partner/?partner_type__exact=customer",
-                        "permission": lambda request: has_perm(request, 'sales.view_salesinvoice') or is_superuser(request),
+                        "permission": perm_or_superuser('sales.view_salesinvoice'),
                     },
                     {
                         "title": "فواتير المبيعات",
                         "icon": "receipt_long",
                         "link": "/admin/sales/salesinvoice/",
-                        "permission": lambda request: has_perm(request, 'sales.view_salesinvoice') or is_superuser(request),
+                        "permission": perm_or_superuser('sales.view_salesinvoice'),
                     },
                 ],
             },
@@ -384,13 +382,13 @@ UNFOLD = {
                         "title": "الموردين",
                         "icon": "local_shipping",
                         "link": "/admin/partners/partner/?partner_type__exact=supplier",
-                        "permission": lambda request: has_perm(request, 'purchases.view_purchaseinvoice') or is_superuser(request),
+                        "permission": perm_or_superuser('purchases.view_purchaseinvoice'),
                     },
                     {
                         "title": "فواتير المشتريات",
                         "icon": "shopping_cart",
                         "link": "/admin/purchases/purchaseinvoice/",
-                        "permission": lambda request: has_perm(request, 'purchases.view_purchaseinvoice') or is_superuser(request),
+                        "permission": perm_or_superuser('purchases.view_purchaseinvoice'),
                     },
                 ],
             },
@@ -402,25 +400,25 @@ UNFOLD = {
                         "title": "المنتجات",
                         "icon": "inventory_2",
                         "link": "/admin/inventory/product/",
-                        "permission": lambda request: has_perm(request, 'inventory.view_product') or is_superuser(request),
+                        "permission": perm_or_superuser('inventory.view_product'),
                     },
                     {
                         "title": "المخازن",
                         "icon": "warehouse",
                         "link": "/admin/inventory/warehouse/",
-                        "permission": lambda request: has_perm(request, 'inventory.view_warehouse') or is_superuser(request),
+                        "permission": perm_or_superuser('inventory.view_warehouse'),
                     },
                     {
                         "title": "أرصدة المخزون",
                         "icon": "stacked_bar_chart",
                         "link": "/admin/inventory/stockbalance/",
-                        "permission": lambda request: has_perm(request, 'inventory.view_stockbalance') or is_superuser(request),
+                        "permission": perm_or_superuser('inventory.view_stockbalance'),
                     },
                     {
                         "title": "الحركات المخزنية",
                         "icon": "swap_horiz",
                         "link": "/admin/inventory/stocktransaction/",
-                        "permission": lambda request: has_perm(request, 'inventory.view_stocktransaction') or is_superuser(request),
+                        "permission": perm_or_superuser('inventory.view_stocktransaction'),
                     },
                 ],
             },
@@ -432,25 +430,25 @@ UNFOLD = {
                         "title": "شجرة الحسابات",
                         "icon": "account_tree",
                         "link": "/admin/accounting/account/",
-                        "permission": lambda request: has_perm(request, 'accounting.view_account') or is_superuser(request),
+                        "permission": perm_or_superuser('accounting.view_account'),
                     },
                     {
                         "title": "دفاتر اليومية",
                         "icon": "book",
                         "link": "/admin/accounting/journal/",
-                        "permission": lambda request: has_perm(request, 'accounting.view_journal') or is_superuser(request),
+                        "permission": perm_or_superuser('accounting.view_journal'),
                     },
                     {
                         "title": "قيود اليومية",
                         "icon": "menu_book",
                         "link": "/admin/accounting/journalentry/",
-                        "permission": lambda request: has_perm(request, 'accounting.view_journalentry') or is_superuser(request),
+                        "permission": perm_or_superuser('accounting.view_journalentry'),
                     },
                     {
                         "title": "سندات القبض والصرف",
                         "icon": "payments",
                         "link": "/admin/accounting/payment/",
-                        "permission": lambda request: has_perm(request, 'accounting.view_payment') or is_superuser(request),
+                        "permission": perm_or_superuser('accounting.view_payment'),
                     },
                 ],
             },
@@ -492,21 +490,4 @@ UNFOLD = {
             },
         ],
     },
-
-    "TABS": [
-        {
-            "models": ["auth.user"],
-            "items": [
-                {
-                    "title": "تغيير كلمة المرور",
-                    "link": reverse_lazy("admin:password_change"),
-                },
-            ],
-        },
-    ],
-}
-
-GRAPH_MODELS = {
-    'all_applications': True,
-    'group_models': True,
 }

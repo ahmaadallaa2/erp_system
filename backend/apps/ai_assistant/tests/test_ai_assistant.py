@@ -16,7 +16,7 @@ from apps.core.models.company import Company
 from apps.users.models import User
 
 
-FIXTURES_DIR = Path(__file__).resolve().parent / "test_assets" / "fixtures"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent / "test_assets" / "fixtures"
 
 
 class DocumentUploadSerializerTestCase(SimpleTestCase):

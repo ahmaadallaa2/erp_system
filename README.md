@@ -23,17 +23,17 @@ Pinned in `backend/requirements.txt`:
 | Area | Packages |
 | --- | --- |
 | Framework | Django 6.0.2, Django REST Framework 3.16.1 |
-| Database | PostgreSQL via `psycopg2-binary` 2.9.11, `dj-database-url` 3.0.1 |
+| Database | PostgreSQL via `psycopg2-binary` 2.9.11 |
 | Auth | `djangorestframework-simplejwt` 5.5.1, PyJWT 2.11.0 |
 | API schema | `drf-spectacular` 0.27.2 (OpenAPI, Swagger, ReDoc) |
 | Admin | `django-unfold` 0.79.0 |
 | HTTP / deploy | `django-cors-headers` 4.9.0, WhiteNoise 6.11.0, Gunicorn 23.0.0 |
-| Other | `django-filter`, `django-extensions`, Pillow, `python-dotenv`, `pydotplus` |
+| Other | Pillow, `python-dotenv` |
 | AI documents | `pypdf`, `python-docx`, `sentence-transformers`, `faiss-cpu`, LangChain, `langchain-community`, `langchain-ollama`, `ollama` |
 
 Django 6.0 requires Python 3.12 or newer.
 
-`django-filter` is installed and listed in `INSTALLED_APPS`. Report and list filters in the current views are implemented with serializers and queryset parameters, not `DjangoFilterBackend`.
+List and report filters are implemented with serializers and queryset parameters.
 
 ### Frontend
 
@@ -66,7 +66,6 @@ erp_system/
 │   ├── manage.py
 │   ├── requirements.txt
 │   ├── .env.example
-│   ├── API_ROADMAP.md
 │   ├── config/
 │   │   ├── settings.py
 │   │   ├── urls.py
@@ -365,19 +364,6 @@ Most business models use a UUID primary key through `BaseModel` (`created_at`, `
 
 ## Setup & Installation
 
-### Current workspace note
-
-These files contain unresolved Git conflict markers and will not import or type-check until the conflicts are resolved:
-
-- `backend/config/settings.py`
-- `backend/.env.example`
-- `backend/apps/core/tests/test_settings_security.py`
-- `frontend/src/App.tsx`
-- `frontend/src/app/store/auth-store.ts`
-- `frontend/src/features/auth/types.ts`
-
-The sections below describe the configuration those files are written to use once the markers are removed.
-
 ### Backend
 
 1. Install Python 3.12+ and PostgreSQL. Create a database (the sample name is `erp_db`).
@@ -390,7 +376,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-3. Copy `backend/.env.example` to `backend/.env` after the conflict in that example file is resolved. Local values:
+3. Copy `backend/.env.example` to `backend/.env`. Local values:
 
 ```text
 DEBUG=True
@@ -407,13 +393,12 @@ CORS_ALLOW_CREDENTIALS=True
 CORS_ALLOW_ALL_ORIGINS=False
 ```
 
-`settings.py` reads `DATABASE_URL` on one side of the current conflict and discrete `DB_*` variables on both sides. Use `DB_*` unless you keep the `DATABASE_URL` branch when resolving the conflict. With `DEBUG=False`, `SECRET_KEY` and `ALLOWED_HOSTS` are required, and `CORS_ALLOW_ALL_ORIGINS` cannot be true.
+`settings.py` builds the database connection from the `DB_*` variables. With `DEBUG=False`, `SECRET_KEY` and `ALLOWED_HOSTS` are required, and `CORS_ALLOW_ALL_ORIGINS` cannot be true.
 
-4. Migrate, create roles, and create an admin user:
+4. Migrate and create an admin user. Role groups and their permissions are synced automatically after every `migrate`; `python manage.py setup_roles` re-runs the sync manually.
 
 ```powershell
 python manage.py migrate
-python manage.py setup_roles
 python manage.py createsuperuser
 ```
 
@@ -423,7 +408,7 @@ python manage.py createsuperuser
 python manage.py runserver 9000
 ```
 
-6. In `/admin/`, create a company, branch, and a non-superuser linked to that company (and branch, unless the user is a company-wide admin). Assign the groups from `setup_roles` that match the work they should post or cancel. Chart-of-accounts rows are created by migration `0005` for companies that exist when it runs; new companies need the standard accounts present before invoice or payment posting, because posting looks up codes `1001`–`1004`, `2001`, `4001`, and `5001`.
+6. In `/admin/`, create a company, branch, and a non-superuser linked to that company (and branch, unless the user is a company-wide admin). Assign the role groups that match the work they should post or cancel. The standard chart of accounts is created automatically when a company is created (migration `0005` seeded companies that already existed); posting looks up codes `1001`–`1004`, `2001`, `4001`, and `5001`.
 
 API docs (when `DEBUG=True`): [http://127.0.0.1:9000/api/docs/](http://127.0.0.1:9000/api/docs/).
 
@@ -446,6 +431,5 @@ Processing and search need the Python AI packages from `requirements.txt` (sente
 ### Other docs in the repo
 
 - `ERP_SYSTEM_CONTEXT.md` — longer project context. Treat this README as the description of the code that is present now.
-- `backend/API_ROADMAP.md` — API notes and planned work.
 - `frontend/README.md` — frontend route and UI notes.
 - `backend/apps/ai_assistant/README.md` — AI pipeline and request examples.

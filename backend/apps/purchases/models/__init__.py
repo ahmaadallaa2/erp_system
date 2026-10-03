@@ -1,2 +1,4 @@
 from .purchase_invoice import PurchaseInvoice
 from .purchase_invoice_item import PurchaseInvoiceItem
+
+__all__ = ['PurchaseInvoice', 'PurchaseInvoiceItem']

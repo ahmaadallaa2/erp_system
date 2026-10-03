@@ -94,7 +94,8 @@ class JournalAdmin(ModelAdmin):
         text_color, bg_color = colors.get(obj.type, ('#333', '#eee'))
 
         return format_html(
-            '<span style="background-color: {}; color: {}; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">{}</span>',
+            '<span style="background-color: {}; color: {}; padding: 2px 10px; '
+            'border-radius: 12px; font-size: 12px; font-weight: bold;">{}</span>',
             bg_color,
             text_color,
             obj.get_type_display()

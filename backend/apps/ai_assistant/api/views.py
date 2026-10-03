@@ -161,7 +161,10 @@ class DocumentViewSet(
 
     @extend_schema(
         summary="Semantic search AI document",
-        description="Search extracted document chunks semantically using a local FAISS index. No chat or Q&A is performed.",
+        description=(
+            "Search extracted document chunks semantically using a local FAISS index. "
+            "No chat or Q&A is performed."
+        ),
         tags=["AI Assistant"],
         request=SemanticSearchRequestSerializer,
         responses={200: SemanticSearchResultSerializer(many=True)},
@@ -247,7 +250,10 @@ class DocumentViewSet(
 
     @extend_schema(
         summary="Ask AI document",
-        description="Answer a question using retrieved document chunks and Ollama llama3. No ERP core data is modified.",
+        description=(
+            "Answer a question using retrieved document chunks and Ollama llama3. "
+            "No ERP core data is modified."
+        ),
         tags=["AI Assistant"],
         request=AskDocumentRequestSerializer,
         responses={200: AskDocumentResponseSerializer},

@@ -1,5 +1,4 @@
 from decimal import Decimal, ROUND_HALF_UP
-from django.db.models import Sum
 
 from django.db import transaction
 from django.core.exceptions import ValidationError
