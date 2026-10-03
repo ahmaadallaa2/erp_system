@@ -1,9 +1,16 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from apps.accounting.models.entry import JournalEntry, JournalItem
 from apps.accounting.models.journal import Journal
 from apps.accounting.models.account import Account
 from apps.accounting.models.payment import Payment
+from apps.accounting.models.payment_allocation import PaymentAllocation
+from apps.accounting.services.payment_allocation_service import (
+    INVOICE_TYPES,
+    PaymentAllocationService,
+)
 
 
 class AccountLookupSerializer(serializers.ModelSerializer):
@@ -90,6 +97,8 @@ class JournalEntryDetailSerializer(serializers.ModelSerializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     journal_entry_id = serializers.UUIDField(read_only=True)
+    allocated_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    unallocated_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = Payment
@@ -103,6 +112,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             "payment_method",
             "account",
             "amount",
+            "allocated_amount",
+            "unallocated_amount",
             "date",
             "status",
             "reference",
@@ -183,3 +194,49 @@ class PaymentSerializer(serializers.ModelSerializer):
         validated_data["branch"] = user.branch
 
         return super().create(validated_data)
+
+
+class PaymentAllocationRequestSerializer(serializers.Serializer):
+    invoice_id = serializers.UUIDField()
+    invoice_type = serializers.ChoiceField(choices=list(INVOICE_TYPES))
+    amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+    )
+
+
+class PaymentAllocationSerializer(serializers.ModelSerializer):
+    invoice_type = serializers.SerializerMethodField()
+    invoice_id = serializers.UUIDField(source="invoice_object_id", read_only=True)
+    invoice_number = serializers.CharField(source="invoice.invoice_number", read_only=True)
+    invoice_amount_paid = serializers.DecimalField(
+        source="invoice.amount_paid", max_digits=12, decimal_places=2, read_only=True
+    )
+    invoice_amount_due = serializers.DecimalField(
+        source="invoice.amount_due", max_digits=12, decimal_places=2, read_only=True
+    )
+    invoice_payment_status = serializers.CharField(source="invoice.payment_status", read_only=True)
+    payment_unallocated_amount = serializers.DecimalField(
+        source="payment.unallocated_amount", max_digits=12, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = PaymentAllocation
+        fields = [
+            "id",
+            "payment",
+            "invoice_type",
+            "invoice_id",
+            "invoice_number",
+            "amount",
+            "invoice_amount_paid",
+            "invoice_amount_due",
+            "invoice_payment_status",
+            "payment_unallocated_amount",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_invoice_type(self, obj) -> str:
+        return PaymentAllocationService.invoice_type_for(obj)

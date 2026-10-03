@@ -61,6 +61,11 @@ ROLE_ACTIONS = {
         ROLE_ACCOUNTING_MANAGER,
     },
     "accounting.payment.cancel": {ROLE_COMPANY_ADMIN, ROLE_ACCOUNTING_MANAGER},
+    "accounting.payment.allocate": {
+        ROLE_COMPANY_ADMIN,
+        ROLE_ACCOUNTANT,
+        ROLE_ACCOUNTING_MANAGER,
+    },
     "inventory.stock_transaction.post": {
         ROLE_COMPANY_ADMIN,
         ROLE_INVENTORY_MANAGER,
@@ -231,6 +236,42 @@ def sync_role_groups(app_label=None, using=DEFAULT_DB_ALIAS, apps=global_apps):
 
 def create_default_groups():
     return sync_role_groups()
+
+
+# Role group every user of a given user_type always gets.
+USER_TYPE_DEFAULT_ROLES = {
+    "company_admin": ROLE_COMPANY_ADMIN,
+    "branch_manager": ROLE_BRANCH_MANAGER,
+}
+
+
+def set_user_roles(user, role_names):
+    """Replace the user's ERP role groups; non-ERP groups are left untouched."""
+    unknown = set(role_names) - set(SYSTEM_ROLES)
+    if unknown:
+        raise ValueError(f"Unknown ERP roles: {', '.join(sorted(unknown))}")
+
+    user.groups.remove(*user.groups.filter(name__in=SYSTEM_ROLES).exclude(name__in=role_names))
+    for role_name in role_names:
+        assign_role(user, role_name)
+
+
+def is_system_admin(user):
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or getattr(user, "user_type", None) == "system_admin"
+
+
+def is_company_admin(user):
+    if not user or not user.is_authenticated or not getattr(user, "company_id", None):
+        return False
+    if getattr(user, "user_type", None) == "company_admin":
+        return True
+    return ROLE_COMPANY_ADMIN in user_role_names(user)
+
+
+def can_manage_users(user):
+    return is_system_admin(user) or is_company_admin(user)
 
 
 def user_role_names(user):

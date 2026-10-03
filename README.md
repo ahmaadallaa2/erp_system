@@ -79,7 +79,7 @@ erp_system/
 │       ├── inventory/       # products, warehouses, stock documents, balances, reports
 │       ├── sales/           # sales invoices and posting/cancellation service
 │       ├── purchases/       # purchase invoices and posting/cancellation service
-│       ├── accounting/      # chart, journals, entries, payments, general ledger
+│       ├── accounting/      # chart, journals, entries, payments, financial reports
 │       └── ai_assistant/    # PDF/DOCX upload, embeddings, FAISS, Q&A
 └── frontend/
     ├── package.json
@@ -106,12 +106,12 @@ Frontend feature folders: `dashboard`, `partners`, `products`, `warehouses`, `st
 | App | API prefix | What it does |
 | --- | --- | --- |
 | `core` | `/api/dashboard/summary/` | Company-scoped dashboard totals. Admin for companies, branches, fiscal years, sequences, attachments, audit log, system settings. |
-| `users` | `/api/auth/` | Email login, refresh, current user, company/branch context. Role groups and action permissions. |
+| `users` | `/api/auth/` | Email login, refresh, current user, company/branch context, user administration. Role groups and action permissions. |
 | `partners` | `/api/partners/` | Partner CRUD, plus customer and supplier list actions. |
 | `inventory` | `/api/inventory/` | Units, products, warehouses, stock transactions, movements, balances, two reports. |
 | `sales` | `/api/sales/` | Sales invoices and line items, post, cancel. |
 | `purchases` | `/api/purchases/` | Purchase invoices and line items, post, cancel. |
-| `accounting` | `/api/accounting/` | Account lookup, journal-entry detail, payments, general ledger. |
+| `accounting` | `/api/accounting/` | Account lookup, journal-entry detail, payments, general ledger, trial balance, income statement, balance sheet. |
 | `ai_assistant` | `/api/ai-assistant/` | Document upload, process, search, and question answering. |
 
 Root routes outside `/api/`:
@@ -128,9 +128,10 @@ Default API permission is authenticated. Login and token refresh are public. In 
 - Custom user model: email is the username. Fields include full name, phone, job title, `user_type` (`system_admin`, `company_admin`, `branch_manager`, `employee`), company, and branch.
 - `POST /api/auth/login/` returns SimpleJWT access and refresh tokens. Access lifetime is 60 minutes. Refresh lifetime is 7 days.
 - `POST /api/auth/refresh/`, `GET /api/auth/me/`, `GET /api/auth/context/`.
+- `/api/auth/users/` — user administration (list, retrieve, create, update, partial update; `DELETE` sets `is_active=false` and never hard-deletes; `PATCH {"is_active": true}` reactivates). Only system admins (superuser or `user_type=system_admin`) and company admins (`user_type=company_admin` or the CompanyAdmin group) have access. Company admins only see and manage users of their own company, never superusers or system admins, cannot assign `system_admin`, and cannot move users to another company. Passwords are write-only, required on create, checked against Django's password validators, and hashed. `roles` replaces the user's ERP role groups; the user type's default role (CompanyAdmin or BranchManager) is always added. Admins cannot deactivate themselves.
 - `python manage.py setup_roles` creates Django groups: CompanyAdmin, BranchManager, SalesUser, SalesManager, PurchaseUser, PurchaseManager, InventoryUser, InventoryManager, Accountant, AccountingManager, Auditor, AIUser, AIAdmin.
 - Company-wide access: superuser, `system_admin`, `company_admin`, CompanyAdmin, AccountingManager, Auditor.
-- Action permissions gate posting and cancelling sales invoices, purchase invoices, payments, and stock transactions, and viewing the general ledger.
+- Action permissions gate posting and cancelling sales invoices, purchase invoices, payments, and stock transactions, and viewing accounting reports.
 - There is no user-management REST API. Users are created in the admin.
 
 ### Partners
@@ -207,13 +208,15 @@ The React flow matches sales: list, create, details, add lines, post, cancel/rev
 - Inbound: debit cash/bank, credit Accounts Receivable `1003` for the partner.
 - Outbound: debit Accounts Payable `2001` for the partner, credit cash/bank. Outbound posting is rejected when the cash/bank account balance is lower than the amount.
 - Cancellation posts a reversing journal entry. It does not move stock.
-- Payments are not allocated to individual invoices. They settle partner AR/AP at account level.
+- Payments settle partner AR/AP at account level. They can also be allocated to specific invoices with `POST /api/accounting/payments/{id}/allocate/` (`invoice_id`, `invoice_type` = `sales` or `purchase`, `amount`). Rules: payment and invoice both posted, same company and partner, inbound payments only to sales invoices and outbound only to purchase invoices, and the amount cannot exceed the payment's unallocated balance or the invoice's outstanding balance. Requires CompanyAdmin, Accountant, or AccountingManager; branch-scoped users can only allocate to invoices of their branch.
+- Allocation writes no journal entry (the AR/AP posting already happened); it only tracks settlement. Invoices expose `amount_paid`, `amount_due`, and `payment_status` (`unpaid`, `partially_paid`, `paid`); their `status` stays `posted`. Payments expose `allocated_amount` and `unallocated_amount`.
+- Cancelling a payment or an invoice releases its allocations and reduces the invoices' `amount_paid` accordingly.
 
 The React payments page lists payments, creates a draft, posts it, cancels/reverses a posted payment, and links to the journal entry. Summary cards count received, paid, and draft payments.
 
 ### Accounting
 
-Models: chart of accounts (tree), journals (`sale`, `purchase`, `cash`, `bank`, `general`), journal entries, journal lines, payments.
+Models: chart of accounts (tree), journals (`sale`, `purchase`, `cash`, `bank`, `general`), journal entries, journal lines, payments, payment allocations.
 
 Posted and cancelled journal entries are immutable. Corrections are reversing entries. A posted entry must be balanced and non-zero.
 
@@ -241,11 +244,16 @@ API:
 
 - `GET /api/accounting/accounts/` — lookup of active postable accounts (read-only).
 - `GET /api/accounting/journal-entries/{id}/` — one entry with its lines. There is no journal-entry list or create API.
-- `GET /api/accounting/reports/general-ledger/` — posted journal lines, filterable by start date, end date, account, and partner. Requires an accounting-report role (CompanyAdmin, Accountant, AccountingManager, Auditor, or a company-wide user type / superuser).
+- `GET /api/accounting/reports/general-ledger/` — posted journal lines, filterable by start date, end date, account, and partner.
+- `GET /api/accounting/reports/trial-balance/` — debit and credit totals, net debit/credit balance, and normal-side balance per account for the date range, in sections by account type, with grand totals and an `is_balanced` flag.
+- `GET /api/accounting/reports/income-statement/` — income and expense accounts for the date range, section totals, and `net_profit` (negative for a loss).
+- `GET /api/accounting/reports/balance-sheet/` — asset, liability, and equity balances as of `end_date`. Equity also carries `retained_earnings` (profit before `start_date`) and `net_profit` (profit inside the range), so assets equal liabilities plus equity.
+
+All four reports accept `start_date` and `end_date`, use posted, non-deleted entries of the user's company only, and require an accounting-report role (CompanyAdmin, Accountant, AccountingManager, Auditor, or a company-wide user type / superuser). Branch-scoped users (Accountant) only see entries linked to their branch through a payment, invoice, or stock transaction; manual journal entries are company-wide only. A branch-scoped user with no branch gets 403.
 
 The React general ledger page calls that report and filters by date, account, and partner. The journal entry page is a detail view opened from invoices and payments.
 
-The sidebar shows Trial Balance, Balance Sheet, and Income Statement as disabled “coming soon” items. Those reports are not implemented.
+The sidebar still shows Trial Balance, Balance Sheet, and Income Statement as disabled “coming soon” items; the APIs exist but there are no React pages for them yet.
 
 ### Dashboard
 
@@ -305,15 +313,15 @@ Protected (JWT in the Zustand store; Axios sends `Authorization: Bearer`):
 
 `AppLayout` logs the user out after 30 minutes without mouse, keyboard, click, scroll, or touch activity. That timer is independent of the API access-token lifetime (60 minutes) and of `SystemSetting.session_timeout_minutes` (default 60, stored for admin settings, not read by the React timer).
 
-`UsersPage` (`/src/pages/UsersPage.tsx`) is a static Arabic placeholder. It does not call an API. `Guard` and `ProtectedRoute` contain optional role checks, but the auth types, auth store, and `App.tsx` route table that would supply `user.role` are inside unresolved Git conflict markers (see Setup). Do not treat frontend role gating or a users screen as a finished feature.
+`UsersPage` (`/src/pages/UsersPage.tsx`) is a static Arabic placeholder routed at `/users` for `system_admin` and `company_admin` user types. It does not call `/api/auth/users/` yet. `Guard` and `ProtectedRoute` check `user.user_type` from the auth store.
 
 ### Not implemented
 
-- Trial balance, balance sheet, and income statement.
-- Payment allocation to specific invoices.
+- React pages for the trial balance, balance sheet, and income statement (the APIs exist).
+- A React screen for payment allocation (the API exists).
 - Cash sales at invoice time.
 - Frontend create/edit screens for partners, products, warehouses, and stock documents.
-- User administration API or a working users page.
+- A working users page (the user administration API exists).
 - Using product income/expense accounts, or purchase commission, in automatic journals.
 - Fiscal-year close. `FiscalYear` exists in the admin and is not enforced by posting services.
 - VAT calculation. `SystemSetting.default_vat_percentage` is stored and not applied to invoices.
@@ -342,15 +350,16 @@ Most business models use a UUID primary key through `BaseModel` (`created_at`, `
 | `StockTransaction` | inventory | IN / OUT / TRANSFER document. Optional link to one journal entry. |
 | `StockMovement` | inventory | Line: product, quantity, unit cost. |
 | `StockBalance` | inventory | Quantity, reserved quantity, location, reorder point per company, product, and warehouse. |
-| `SalesInvoice` | sales | Branch, customer, optional warehouse, status, total, journal entry, post/cancel audit fields. |
+| `SalesInvoice` | sales | Branch, customer, optional warehouse, status, total, amount paid, journal entry, post/cancel audit fields. |
 | `SalesInvoiceItem` | sales | Product, quantity, unit price, line total. |
-| `PurchaseInvoice` | purchases | Branch, supplier, warehouse, vendor bill number, shipping, clearance, commission percent, status, journal entry. |
+| `PurchaseInvoice` | purchases | Branch, supplier, warehouse, vendor bill number, shipping, clearance, commission percent, status, total, amount paid, journal entry. |
 | `PurchaseInvoiceItem` | purchases | Product, quantity, unit price, line total. |
 | `Account` | accounting | Company chart node: code, type, normal balance, parent, postable, reconciliation flag. |
 | `Journal` | accounting | Named book with a type and optional default account. |
 | `JournalEntry` | accounting | Draft, posted, or cancelled entry in a journal. |
 | `JournalItem` | accounting | Account, optional partner, description, debit, credit. |
 | `Payment` | accounting | Inbound/outbound voucher, cash or bank account, amount, journal entry, post/cancel audit fields. |
+| `PaymentAllocation` | accounting | Soft-deletable link from a payment to a sales or purchase invoice (generic foreign key) with the allocated amount. |
 | `Document` | ai_assistant | Uploaded PDF/DOCX and processing status. |
 | `DocumentChunk` | ai_assistant | Chunk text, page span, JSON embedding, embedding model name. |
 

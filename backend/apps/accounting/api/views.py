@@ -1,7 +1,10 @@
-from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from decimal import Decimal
 
-from rest_framework import mixins, status, viewsets
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import DecimalField, Q, Sum, Value
+from django.db.models.functions import Coalesce
+
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -17,17 +20,21 @@ from drf_spectacular.utils import (
 from apps.accounting.models.account import Account
 from apps.accounting.models.entry import JournalEntry
 from apps.accounting.models.payment import Payment
+from apps.accounting.services.payment_allocation_service import PaymentAllocationService
 from apps.accounting.services.payment_service import PaymentService
 from apps.users.api.permissions import (
+    CanAllocatePayment,
     CanCancelPayment,
     CanPostPayment,
     HasBranchAccess,
     IsCompanyMember,
 )
-from apps.users.roles import scope_queryset_to_user_branch
+from apps.users.roles import has_company_wide_access, scope_queryset_to_user_branch
 from .serializers import (
     AccountLookupSerializer,
     JournalEntryDetailSerializer,
+    PaymentAllocationRequestSerializer,
+    PaymentAllocationSerializer,
     PaymentSerializer,
 )
 
@@ -215,6 +222,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
             permission_classes.append(CanPostPayment)
         elif self.action == "cancel_payment":
             permission_classes.append(CanCancelPayment)
+        elif self.action == "allocate":
+            permission_classes.append(CanAllocatePayment)
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
@@ -225,6 +234,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
             company=user.company,
         ).order_by("-date", "-created_at")
         qs = scope_queryset_to_user_branch(qs, user, "branch_id")
+        qs = qs.annotate(
+            allocated_total=Coalesce(
+                Sum("allocations__amount", filter=Q(allocations__is_deleted=False)),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
 
         status_param = self.request.query_params.get("status")
         if status_param in ["draft", "posted", "cancelled"]:
@@ -302,6 +318,40 @@ class PaymentViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             raise ValidationError(exc.messages) from exc
 
-        payment.refresh_from_db()
+        payment = self.get_queryset().get(pk=payment.pk)
         serializer = self.get_serializer(payment)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Allocate payment to invoice",
+        description=(
+            "Allocate part of a posted payment to a posted invoice of the same "
+            "partner: inbound payments to sales invoices, outbound payments to "
+            "purchase invoices. The amount cannot exceed the payment's "
+            "unallocated balance or the invoice's outstanding balance."
+        ),
+        tags=["Payments"],
+        request=PaymentAllocationRequestSerializer,
+        responses={201: PaymentAllocationSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="allocate")
+    def allocate(self, request, pk=None):
+        payment = self.get_object()
+        request_serializer = PaymentAllocationRequestSerializer(data=request.data)
+        request_serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        try:
+            allocation = PaymentAllocationService.allocate_payment(
+                payment.pk,
+                company=user.company,
+                branch=None if has_company_wide_access(user) else user.branch,
+                **request_serializer.validated_data,
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(serializers.as_serializer_error(exc)) from exc
+
+        return Response(
+            PaymentAllocationSerializer(allocation).data,
+            status=status.HTTP_201_CREATED,
+        )

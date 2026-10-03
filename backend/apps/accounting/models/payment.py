@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
@@ -153,6 +153,19 @@ class Payment(SoftDeleteModel):
     def __str__(self):
         partner_name = self.partner.name if self.partner_id else "-"
         return f"{self.voucher_number or '-'} - {partner_name} - {self.amount}"
+
+    @property
+    def allocated_amount(self):
+        # Querysets may pre-compute this as an `allocated_total` annotation.
+        annotated = getattr(self, "allocated_total", None)
+        if annotated is not None:
+            return annotated
+        total = self.allocations.aggregate(total=Sum("amount"))["total"]
+        return total or Decimal("0.00")
+
+    @property
+    def unallocated_amount(self):
+        return self.amount - self.allocated_amount
 
     def clean(self):
         super().clean()

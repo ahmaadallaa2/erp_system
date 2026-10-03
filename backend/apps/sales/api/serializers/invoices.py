@@ -56,6 +56,8 @@ class SalesInvoiceItemSerializer(serializers.ModelSerializer):
 class SalesInvoiceSerializer(serializers.ModelSerializer):
     items = SalesInvoiceItemSerializer(many=True, read_only=True)
     journal_entry_id = serializers.UUIDField(read_only=True)
+    amount_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    payment_status = serializers.CharField(read_only=True)
 
     class Meta:
         model = SalesInvoice
@@ -69,6 +71,9 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "date",
             "status",
             "total_amount",
+            "amount_paid",
+            "amount_due",
+            "payment_status",
             "journal_entry",
             "journal_entry_id",
             "posted_by",
@@ -88,6 +93,7 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
             "invoice_number",
             "status",
             "total_amount",
+            "amount_paid",
             "journal_entry",
             "journal_entry_id",
             "posted_by",

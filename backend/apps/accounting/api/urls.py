@@ -1,7 +1,12 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .report_views import GeneralLedgerReportAPIView
+from .report_views import (
+    BalanceSheetReportAPIView,
+    GeneralLedgerReportAPIView,
+    IncomeStatementReportAPIView,
+    TrialBalanceReportAPIView,
+)
 from .views import AccountLookupViewSet, JournalEntryViewSet, PaymentViewSet
 
 router = DefaultRouter()
@@ -14,6 +19,21 @@ urlpatterns = [
         "reports/general-ledger/",
         GeneralLedgerReportAPIView.as_view(),
         name="general-ledger-report",
+    ),
+    path(
+        "reports/trial-balance/",
+        TrialBalanceReportAPIView.as_view(),
+        name="trial-balance-report",
+    ),
+    path(
+        "reports/income-statement/",
+        IncomeStatementReportAPIView.as_view(),
+        name="income-statement-report",
+    ),
+    path(
+        "reports/balance-sheet/",
+        BalanceSheetReportAPIView.as_view(),
+        name="balance-sheet-report",
     ),
     path("", include(router.urls)),
 ]

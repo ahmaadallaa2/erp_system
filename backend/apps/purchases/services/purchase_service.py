@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from apps.accounting.models import JournalEntry, JournalItem
 from apps.accounting.services.accounting_service import AccountingService
+from apps.accounting.services.payment_allocation_service import PaymentAllocationService
 from apps.inventory.models import StockTransaction
 from apps.inventory.services.stock_service import StockService
 
@@ -164,6 +165,7 @@ class PurchaseService:
             user=user,
         )
         reversal_journal_entry = PurchaseService._create_reversal_journal_entry(invoice)
+        PaymentAllocationService.release_for_invoice(invoice)
 
         invoice.status = "cancelled"
         invoice.cancelled_by = user

@@ -1,8 +1,10 @@
 from rest_framework.permissions import BasePermission
 
 from apps.users.roles import (
+    can_manage_users,
     has_company_wide_access,
     has_erp_action_permission,
+    is_system_admin,
     user_can_access_branch_object,
 )
 
@@ -76,9 +78,31 @@ class CanCancelPayment(HasERPActionPermission):
     action = "accounting.payment.cancel"
 
 
+class CanAllocatePayment(HasERPActionPermission):
+    action = "accounting.payment.allocate"
+
+
 class CanPostStockTransaction(HasERPActionPermission):
     action = "inventory.stock_transaction.post"
 
 
 class CanViewAccountingReports(HasERPActionPermission):
     action = "accounting.reports.view"
+
+
+class CanManageUsers(BasePermission):
+    """System admins manage every user; company admins only their company's
+    users, excluding superusers and system admins."""
+
+    message = "Only system or company administrators can manage users."
+
+    def has_permission(self, request, view):
+        return can_manage_users(request.user)
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if is_system_admin(user):
+            return True
+        if obj.is_superuser or obj.user_type == "system_admin":
+            return False
+        return obj.company_id == user.company_id

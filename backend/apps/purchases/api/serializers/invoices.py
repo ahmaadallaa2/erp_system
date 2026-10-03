@@ -57,6 +57,8 @@ class PurchaseInvoiceItemSerializer(serializers.ModelSerializer):
 class PurchaseInvoiceSerializer(serializers.ModelSerializer):
     items = PurchaseInvoiceItemSerializer(many=True, read_only=True)
     journal_entry_id = serializers.UUIDField(read_only=True)
+    amount_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    payment_status = serializers.CharField(read_only=True)
 
     class Meta:
         model = PurchaseInvoice
@@ -71,6 +73,9 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "invoice_date",
             "vendor_bill_number",
             "total_amount",
+            "amount_paid",
+            "amount_due",
+            "payment_status",
             "journal_entry",
             "journal_entry_id",
             "posted_by",
@@ -93,6 +98,7 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
             "branch",
             "status",
             "total_amount",
+            "amount_paid",
             "journal_entry",
             "journal_entry_id",
             "posted_by",

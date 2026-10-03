@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from apps.accounting.models import JournalEntry, JournalItem
 from apps.accounting.services.accounting_service import AccountingService
+from apps.accounting.services.payment_allocation_service import PaymentAllocationService
 
 
 class PaymentService:
@@ -57,6 +58,7 @@ class PaymentService:
             raise ValidationError("Posted payment has no linked journal entry.")
 
         reversal_entry = PaymentService._create_reversal_journal_entry(payment)
+        PaymentAllocationService.release_for_payment(payment)
 
         payment.status = "cancelled"
         payment.cancelled_by = user

@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Q
 from django.core.exceptions import ValidationError
@@ -78,6 +79,22 @@ class PurchaseInvoice(SoftDeleteModel):
         editable=False
     )
 
+    amount_paid = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        verbose_name=_("المبلغ المسدد"),
+        editable=False,
+        help_text=_("يُحدّث فقط عبر تخصيص سندات الصرف."),
+    )
+
+    allocations = GenericRelation(
+        "accounting.PaymentAllocation",
+        content_type_field="invoice_content_type",
+        object_id_field="invoice_object_id",
+        related_query_name="purchase_invoice",
+    )
+
     journal_entry = models.OneToOneField(
         "accounting.JournalEntry",
         on_delete=models.PROTECT,
@@ -145,6 +162,18 @@ class PurchaseInvoice(SoftDeleteModel):
 
     def __str__(self):
         return f"[{self.invoice_number}] {self.supplier.name if self.supplier_id else 'بدون مورد'}"
+
+    @property
+    def amount_due(self):
+        return self.total_amount - self.amount_paid
+
+    @property
+    def payment_status(self):
+        if self.amount_paid <= Decimal("0.00"):
+            return "unpaid"
+        if self.amount_paid >= self.total_amount:
+            return "paid"
+        return "partially_paid"
 
     def clean(self):
         super().clean()
