@@ -18,7 +18,7 @@ class AuditLogAdmin(ModelAdmin):
         'short_changes',
     )
     list_filter = ('action', 'timestamp', 'content_type')
-    search_fields = ('object_id', 'user__username', 'user__email')
+    search_fields = ('object_id', 'user__email', 'user__full_name')
 
     readonly_fields = (
         'user',

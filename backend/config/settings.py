@@ -39,12 +39,21 @@ def env_list(name, default=None):
 DEBUG = env_bool('DEBUG', default=False)
 RUNNING_TESTS = 'test' in sys.argv
 
-SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY:
-    if DEBUG:
-        SECRET_KEY = 'unsafe-local-development-secret-key'
-    else:
-        raise RuntimeError('SECRET_KEY environment variable is required when DEBUG=False.')
+APP_ENV = os.getenv('APP_ENV', 'Development' if DEBUG else 'Production')
+if DEBUG and APP_ENV.strip().lower() == 'production':
+    raise RuntimeError('DEBUG must be False when APP_ENV=Production.')
+
+SECRET_KEY = os.getenv('SECRET_KEY', '')
+if DEBUG:
+    SECRET_KEY = SECRET_KEY or 'unsafe-local-development-secret-key'
+elif not SECRET_KEY:
+    raise RuntimeError('SECRET_KEY environment variable is required when DEBUG=False.')
+elif len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 5 or SECRET_KEY.startswith('django-insecure-'):
+    raise RuntimeError(
+        'SECRET_KEY is too weak for DEBUG=False: use at least 50 random characters '
+        '(e.g. python -c "from django.core.management.utils import get_random_secret_key; '
+        'print(get_random_secret_key())").'
+    )
 
 ALLOWED_HOSTS = env_list(
     'ALLOWED_HOSTS',
@@ -69,11 +78,15 @@ CORS_ALLOWED_ORIGINS = env_list(
 CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', default=False)
 if not DEBUG and CORS_ALLOW_ALL_ORIGINS:
     raise RuntimeError('CORS_ALLOW_ALL_ORIGINS cannot be enabled when DEBUG=False.')
-CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', default=True)
+# The SPA authenticates with a Bearer header, so cross-origin cookies are not needed.
+CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', default=False)
 
 SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', default=not DEBUG and not RUNNING_TESTS)
-SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', default=not DEBUG)
-CSRF_COOKIE_SECURE = env_bool('CSRF_COOKIE_SECURE', default=not DEBUG)
+# Platform health checks probe the container over plain HTTP.
+SECURE_REDIRECT_EXEMPT = [r'^health/$']
+SESSION_COOKIE_SECURE = True if not DEBUG else env_bool('SESSION_COOKIE_SECURE', default=False)
+CSRF_COOKIE_SECURE = True if not DEBUG else env_bool('CSRF_COOKIE_SECURE', default=False)
+SESSION_COOKIE_HTTPONLY = True
 SECURE_HSTS_SECONDS = env_int('SECURE_HSTS_SECONDS', default=31536000 if not DEBUG else 0)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
     'SECURE_HSTS_INCLUDE_SUBDOMAINS',
@@ -83,8 +96,15 @@ SECURE_HSTS_PRELOAD = env_bool('SECURE_HSTS_PRELOAD', default=False)
 USE_X_FORWARDED_PROTO = env_bool('USE_X_FORWARDED_PROTO', default=not DEBUG)
 if USE_X_FORWARDED_PROTO:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY')
+X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY').upper()
+if X_FRAME_OPTIONS not in {'DENY', 'SAMEORIGIN'}:
+    raise RuntimeError('X_FRAME_OPTIONS must be DENY or SAMEORIGIN.')
 SECURE_CONTENT_TYPE_NOSNIFF = env_bool('SECURE_CONTENT_TYPE_NOSNIFF', default=True)
+SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+
+API_DOCS_ENABLED = env_bool('API_DOCS_ENABLED', default=True)
+AI_DOCUMENT_MAX_UPLOAD_MB = env_int('AI_DOCUMENT_MAX_UPLOAD_MB', default=20)
 
 LOGIN_URL = '/admin/login/'
 LOGIN_REDIRECT_URL = '/admin/'
@@ -165,13 +185,27 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # -----------------------------------------------------------------------------
 # Database
 # -----------------------------------------------------------------------------
+LOCAL_DB_DEFAULTS = {
+    'DB_NAME': 'erp_db',
+    'DB_USER': 'postgres',
+    'DB_PASSWORD': '',
+    'DB_HOST': 'localhost',
+}
+if not DEBUG:
+    missing_db_vars = [name for name in LOCAL_DB_DEFAULTS if not os.getenv(name)]
+    if missing_db_vars:
+        raise RuntimeError(
+            'Database environment variables are required when DEBUG=False: '
+            + ', '.join(missing_db_vars)
+        )
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'erp_db'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'NAME': os.getenv('DB_NAME', LOCAL_DB_DEFAULTS['DB_NAME']),
+        'USER': os.getenv('DB_USER', LOCAL_DB_DEFAULTS['DB_USER']),
+        'PASSWORD': os.getenv('DB_PASSWORD', LOCAL_DB_DEFAULTS['DB_PASSWORD']),
+        'HOST': os.getenv('DB_HOST', LOCAL_DB_DEFAULTS['DB_HOST']),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
@@ -241,6 +275,11 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_RENDERER_CLASSES": (
+        ("rest_framework.renderers.JSONRenderer", "rest_framework.renderers.BrowsableAPIRenderer")
+        if DEBUG
+        else ("rest_framework.renderers.JSONRenderer",)
+    ),
     "DEFAULT_THROTTLE_RATES": {
         "auth": os.getenv("AUTH_THROTTLE_RATE", "10/minute"),
     },
@@ -257,7 +296,7 @@ SPECTACULAR_SETTINGS = {
     "SERVE_PERMISSIONS": (
         ["rest_framework.permissions.AllowAny"]
         if DEBUG
-        else ["rest_framework.permissions.IsAuthenticated"]
+        else ["rest_framework.permissions.IsAdminUser"]
     ),
     "SERVE_AUTHENTICATION": None if DEBUG else [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -291,6 +330,23 @@ SIMPLE_JWT = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Django's default LOGGING drops request errors when DEBUG=False unless ADMINS
+# email is configured; send them to stdout so the platform log captures them.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.getenv("LOG_LEVEL", "WARNING"),
+    },
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+    },
+}
+
 # -----------------------------------------------------------------------------
 # Sidebar permissions helpers
 # -----------------------------------------------------------------------------
@@ -314,6 +370,10 @@ def perm_or_superuser(perm_name):
     return lambda request: has_perm(request, perm_name) or is_superuser(request)
 
 
+def environment_callback(request):
+    return [APP_ENV, "danger" if APP_ENV.strip().lower() == "production" else "info"]
+
+
 # -----------------------------------------------------------------------------
 # Unfold Admin Settings
 # -----------------------------------------------------------------------------
@@ -322,7 +382,7 @@ UNFOLD = {
     "SITE_HEADER": "نظام الإدارة المتكامل",
     "SITE_SYMBOL": "account_balance",
     "SITE_URL": "/",
-    "ENVIRONMENT": os.getenv("APP_ENV", "Production"),
+    "ENVIRONMENT": "config.settings.environment_callback",
 
     "COLORS": {
         "primary": {

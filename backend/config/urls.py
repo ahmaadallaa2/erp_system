@@ -12,13 +12,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 
-
-@login_not_required
-def root_view(request):
-    return JsonResponse({
-        "message": "Welcome to the ERP Backend API",
-        "status": "Running smoothly",
-    })
+from apps.core.views import landing_view
 
 
 @login_not_required
@@ -33,7 +27,7 @@ def admin_logout_view(request):
 
 
 urlpatterns = [
-    path("", root_view, name="api-root"),
+    path("", landing_view, name="landing"),
     path("health/", health_view, name="health"),
     path("admin/logout/", admin_logout_view, name="admin-logout"),
     path("admin/", admin.site.urls),
@@ -48,20 +42,23 @@ urlpatterns = [
     path("api/ai-assistant/", include("apps.ai_assistant.api.urls")),
 ]
 
-schema_view = SpectacularAPIView.as_view()
-swagger_view = SpectacularSwaggerView.as_view(url_name="schema")
-redoc_view = SpectacularRedocView.as_view(url_name="schema")
+# Access is governed by SPECTACULAR_SETTINGS["SERVE_PERMISSIONS"]: open in DEBUG,
+# staff-only otherwise. API_DOCS_ENABLED=False removes the routes entirely.
+if settings.API_DOCS_ENABLED:
+    schema_view = SpectacularAPIView.as_view()
+    swagger_view = SpectacularSwaggerView.as_view(url_name="schema")
+    redoc_view = SpectacularRedocView.as_view(url_name="schema")
 
-if settings.DEBUG:
-    schema_view = login_not_required(schema_view)
-    swagger_view = login_not_required(swagger_view)
-    redoc_view = login_not_required(redoc_view)
+    if settings.DEBUG:
+        schema_view = login_not_required(schema_view)
+        swagger_view = login_not_required(swagger_view)
+        redoc_view = login_not_required(redoc_view)
 
-urlpatterns += [
-    path("api/schema/", schema_view, name="schema"),
-    path("api/docs/", swagger_view, name="swagger-ui"),
-    path("api/redoc/", redoc_view, name="redoc"),
-]
+    urlpatterns += [
+        path("api/schema/", schema_view, name="schema"),
+        path("api/docs/", swagger_view, name="swagger-ui"),
+        path("api/redoc/", redoc_view, name="redoc"),
+    ]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

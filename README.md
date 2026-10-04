@@ -115,10 +115,10 @@ Frontend feature folders: `dashboard`, `partners`, `products`, `warehouses`, `st
 
 Root routes outside `/api/`:
 
-- `GET /` — JSON welcome payload
+- `GET /` — branded "Wethaq ERP" HTML landing page with a link to the admin panel
 - `GET /health/` — `{"status": "ok"}`
 - `/admin/` — Unfold admin
-- `GET /api/schema/`, `/api/docs/`, `/api/redoc/` — OpenAPI, Swagger, ReDoc
+- `GET /api/schema/`, `/api/docs/`, `/api/redoc/` — OpenAPI, Swagger, ReDoc (public with `DEBUG=True`, staff-only otherwise; `API_DOCS_ENABLED=False` removes them)
 
 Default API permission is authenticated. Login and token refresh are public. In `DEBUG`, the schema views are also public.
 
@@ -393,7 +393,7 @@ CORS_ALLOW_CREDENTIALS=True
 CORS_ALLOW_ALL_ORIGINS=False
 ```
 
-`settings.py` builds the database connection from the `DB_*` variables. With `DEBUG=False`, `SECRET_KEY` and `ALLOWED_HOSTS` are required, and `CORS_ALLOW_ALL_ORIGINS` cannot be true.
+`settings.py` builds the database connection from the `DB_*` variables. With `DEBUG=False` the app refuses to start unless `SECRET_KEY` (at least 50 random characters), `ALLOWED_HOSTS` (no `*`), `DB_NAME`, `DB_USER`, `DB_PASSWORD` and `DB_HOST` are set; `CORS_ALLOW_ALL_ORIGINS` cannot be true, and `DEBUG=True` is rejected when `APP_ENV=Production`. Session and CSRF cookies are always Secure, and the browsable API is disabled. See `backend/.env.example` for every variable.
 
 4. Migrate and create an admin user. Role groups and their permissions are synced automatically after every `migrate`; `python manage.py setup_roles` re-runs the sync manually.
 
@@ -432,4 +432,5 @@ Processing and search need the Python AI packages from `requirements.txt` (sente
 
 - `ERP_SYSTEM_CONTEXT.md` — longer project context. Treat this README as the description of the code that is present now.
 - `frontend/README.md` — frontend route and UI notes.
+- `frontend/API_REFERENCE.md` — endpoint, payload and permission reference for the frontend.
 - `backend/apps/ai_assistant/README.md` — AI pipeline and request examples.

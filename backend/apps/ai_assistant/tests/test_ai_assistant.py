@@ -53,6 +53,21 @@ class DocumentUploadSerializerTestCase(SimpleTestCase):
         self.assertIn("file", serializer.errors)
         self.assertIn("Only PDF and DOCX files are allowed.", str(serializer.errors["file"]))
 
+    @override_settings(AI_DOCUMENT_MAX_UPLOAD_MB=1)
+    def test_rejects_files_over_the_size_limit(self):
+        serializer = DocumentUploadSerializer(
+            data={
+                "file": SimpleUploadedFile(
+                    "large.pdf",
+                    b"x" * (1024 * 1024 + 1),
+                    content_type="application/pdf",
+                )
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("File size cannot exceed 1 MB.", str(serializer.errors["file"]))
+
 
 class ExtractionServiceDemoFixturesTestCase(SimpleTestCase):
     def test_demo_fixture_files_are_available(self):

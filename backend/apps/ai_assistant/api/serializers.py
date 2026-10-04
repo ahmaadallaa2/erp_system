@@ -1,7 +1,8 @@
-from rest_framework import serializers
 import os
 
+from django.conf import settings
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
+from rest_framework import serializers
 
 from apps.ai_assistant.models import Document, DocumentChunk
 
@@ -53,6 +54,10 @@ class DocumentUploadSerializer(serializers.Serializer):
         ext = os.path.splitext(file.name)[1].lower()
         if ext not in Document.ALLOWED_EXTENSIONS:
             raise serializers.ValidationError("Only PDF and DOCX files are allowed.")
+
+        max_mb = settings.AI_DOCUMENT_MAX_UPLOAD_MB
+        if file.size > max_mb * 1024 * 1024:
+            raise serializers.ValidationError(f"File size cannot exceed {max_mb} MB.")
 
         return file
 
